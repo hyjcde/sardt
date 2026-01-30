@@ -32,6 +32,12 @@ const SceneInitializer = ({ terrainProvider, center }: { terrainProvider: any, c
       viewer.scene.globe.enableLighting = true;
       viewer.scene.globe.depthTestAgainstTerrain = true;
       viewer.scene.light.intensity = 3.5;
+      
+      // 启用大气和雾效，防止背景全黑
+      viewer.scene.skyAtmosphere.show = true;
+      viewer.scene.fog.enabled = true;
+      viewer.scene.fog.density = 0.0002;
+
       viewer.camera.flyTo({
         destination: Cartesian3.fromDegrees(center.lon, center.lat - 0.003, 500),
         orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(-30), roll: 0 },
@@ -60,13 +66,14 @@ const CesiumMap = ({ currentData, fullHistory }: CesiumMapProps) => {
     if (typeof window !== 'undefined') {
       (window as any).CESIUM_BASE_URL = '/cesium';
       createWorldTerrainAsync({ requestVertexNormals: true }).then(setTerrainProvider);
-      createWorldImageryAsync().then(setSatelliteImagery);
+      createWorldImageryAsync().then(setSatelliteImagery).catch(err => {
+        console.error("Cesium World Imagery failed to load, using fallback", err);
+      });
     }
   }, []);
 
   const fallbackImagery = useMemo(() => new OpenStreetMapImageryProvider({ url: 'https://a.tile.openstreetmap.org/' }), []);
 
-  // 计算连线颜色（基于 SNR）
   const linkColor = useMemo(() => {
     const snr = currentData[COL.SNR];
     if (snr > 15) return Color.LIME.withAlpha(0.7);
@@ -78,21 +85,19 @@ const CesiumMap = ({ currentData, fullHistory }: CesiumMapProps) => {
 
   const uavPos = Cartesian3.fromDegrees(currentData[COL.LON_R], currentData[COL.LAT_R], currentData[COL.ALT_R]);
   const targetPos = Cartesian3.fromDegrees(currentData[COL.LON_B], currentData[COL.LAT_B], currentData[COL.ALT_B]);
-  
-  // 提取历史轨迹点
   const trailPositions = fullHistory.map(d => Cartesian3.fromDegrees(d[COL.LON_R], d[COL.LAT_R], d[COL.ALT_R]));
 
   return (
-    <div className="fixed inset-0 z-0 overflow-hidden bg-black">
+    <div className="fixed inset-0 z-0 overflow-hidden bg-zinc-950">
       <Viewer 
         full timeline={false} animation={false} baseLayerPicker={false} fullscreenButton={false}
         geocoder={false} homeButton={false} infoBox={false} selectionIndicator={false}
-        scene3DOnly={true} skyAtmosphere={false} contextOptions={CONTEXT_OPTIONS}
+        scene3DOnly={true} skyAtmosphere={true} contextOptions={CONTEXT_OPTIONS}
+        style={{ width: '100vw', height: '100vh' }}
       >
         <SceneInitializer terrainProvider={terrainProvider} center={{ lon: currentData[COL.LON_R], lat: currentData[COL.LAT_R] }} />
         <ImageryLayer imageryProvider={satelliteImagery || fallbackImagery} />
 
-        {/* 1. 历史轨迹线 */}
         <Entity>
           <PolylineGraphics 
             positions={trailPositions} 
@@ -101,7 +106,6 @@ const CesiumMap = ({ currentData, fullHistory }: CesiumMapProps) => {
           />
         </Entity>
 
-        {/* 2. 实时信号链路 */}
         <Entity>
           <PolylineGraphics 
             positions={[uavPos, targetPos]} 
@@ -110,7 +114,6 @@ const CesiumMap = ({ currentData, fullHistory }: CesiumMapProps) => {
           />
         </Entity>
 
-        {/* 3. 目标基站 */}
         <Entity position={targetPos}>
           <PointGraphics pixelSize={10} color={Color.RED} outlineColor={Color.WHITE} outlineWidth={2} disableDepthTestDistance={Number.POSITIVE_INFINITY} />
           <LabelGraphics 
@@ -121,7 +124,6 @@ const CesiumMap = ({ currentData, fullHistory }: CesiumMapProps) => {
           />
         </Entity>
 
-        {/* 4. 无人机 */}
         <Entity position={uavPos}>
           <PointGraphics pixelSize={12} color={Color.CYAN} outlineColor={Color.WHITE} outlineWidth={2} disableDepthTestDistance={Number.POSITIVE_INFINITY} />
           <LabelGraphics 
@@ -137,7 +139,6 @@ const CesiumMap = ({ currentData, fullHistory }: CesiumMapProps) => {
           />
         </Entity>
 
-        {/* 5. 地面投影和高度线 */}
         <Entity>
           <PolylineGraphics 
             positions={[uavPos, Cartesian3.fromDegrees(currentData[COL.LON_R], currentData[COL.LAT_R], 0)]} 
