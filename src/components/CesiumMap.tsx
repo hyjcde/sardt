@@ -17,7 +17,7 @@ import {
   PolylineDashMaterialProperty,
   NearFarScalar
 } from 'cesium';
-import React, { useEffect, useMemo, useState, memo } from 'react';
+import React, { useEffect, useMemo, useState, memo, useRef, useImperativeHandle, forwardRef } from 'react';
 import { BillboardGraphics, CylinderGraphics, EllipseGraphics, Entity, ImageryLayer, LabelGraphics, PointGraphics, PolylineGraphics, useCesium, Viewer } from 'resium';
 
 // UAV 图标 SVG - 无人机形状
@@ -54,8 +54,19 @@ Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJjMzQyN
 
 const CONTEXT_OPTIONS = { webgl: { preserveDrawingBuffer: true } };
 
-const SceneInitializer = ({ terrainProvider, center }: { terrainProvider: any, center: { lon: number, lat: number } }) => {
+// 用于存储 viewer 实例的全局引用
+let globalViewerRef: any = null;
+
+const SceneInitializer = ({ terrainProvider, center, flyToTarget }: { terrainProvider: any, center: { lon: number, lat: number }, flyToTarget?: { lon: number, lat: number, alt: number } | null }) => {
   const { viewer } = useCesium();
+  
+  // 保存 viewer 引用
+  useEffect(() => {
+    if (viewer) {
+      globalViewerRef = viewer;
+    }
+  }, [viewer]);
+  
   useEffect(() => {
     if (viewer) {
       const now = new Date();
@@ -81,6 +92,22 @@ const SceneInitializer = ({ terrainProvider, center }: { terrainProvider: any, c
       });
     }
   }, [viewer]);
+  
+  // 响应 flyToTarget 变化，飞到目标位置
+  useEffect(() => {
+    if (viewer && flyToTarget) {
+      viewer.camera.flyTo({
+        destination: Cartesian3.fromDegrees(flyToTarget.lon, flyToTarget.lat - 0.002, flyToTarget.alt + 200),
+        orientation: { 
+          heading: CesiumMath.toRadians(0), 
+          pitch: CesiumMath.toRadians(-45), 
+          roll: 0 
+        },
+        duration: 1.5,
+      });
+    }
+  }, [viewer, flyToTarget]);
+  
   useEffect(() => { if (viewer && terrainProvider) viewer.terrainProvider = terrainProvider; }, [viewer, terrainProvider]);
   return null;
 };
@@ -92,6 +119,7 @@ interface CesiumMapProps {
   showCone?: boolean;
   showLabels?: boolean;
   showSignalLink?: boolean;
+  flyToTarget?: { lon: number, lat: number, alt: number } | null;
 }
 
 const CesiumMap = ({ 
@@ -100,7 +128,8 @@ const CesiumMap = ({
   showTrail = true,
   showCone = true,
   showLabels = true,
-  showSignalLink = true
+  showSignalLink = true,
+  flyToTarget = null
 }: CesiumMapProps) => {
   const [mounted, setMounted] = useState(false);
   const [terrainProvider, setTerrainProvider] = useState<any>(undefined);
@@ -164,7 +193,7 @@ const CesiumMap = ({
         sceneModePicker={false} projectionPicker={false}
         scene3DOnly={true} contextOptions={CONTEXT_OPTIONS}
       >
-        <SceneInitializer terrainProvider={terrainProvider} center={{ lon: currentData[COL.LON_R], lat: currentData[COL.LAT_R] }} />
+        <SceneInitializer terrainProvider={terrainProvider} center={{ lon: currentData[COL.LON_R], lat: currentData[COL.LAT_R] }} flyToTarget={flyToTarget} />
         <ImageryLayer imageryProvider={satelliteImagery || fallbackImagery} />
 
         {/* UAV 飞行轨迹 */}

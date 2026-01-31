@@ -63,6 +63,7 @@ export default function Home(props: any) {
   const [isPaused, setIsPaused] = useState(false);         // 暂停数据更新
   const [showStats, setShowStats] = useState(true);        // 显示统计面板
   const [showConfig, setShowConfig] = useState(false);     // 显示配置面板
+  const [flyToTarget, setFlyToTarget] = useState<{ lon: number, lat: number, alt: number } | null>(null); // 飞行目标
   
   const COL = {
     EPOCH: 0, LAT_R: 1, LON_R: 2, ALT_R: 3,
@@ -94,6 +95,14 @@ export default function Home(props: any) {
     return () => clearInterval(interval);
   }, [isPaused]);
 
+  // 飞到目标后清除 flyToTarget 状态，防止重复触发
+  useEffect(() => {
+    if (flyToTarget) {
+      const timer = setTimeout(() => setFlyToTarget(null), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [flyToTarget]);
+
   useEffect(() => {
     if (dataIndex % 10 === 0) {
       const now = new Date();
@@ -118,6 +127,7 @@ export default function Home(props: any) {
         showCone={showCone}
         showLabels={showLabels}
         showSignalLink={showSignalLink}
+        flyToTarget={flyToTarget}
       />
 
       {/* 背景装饰 */}
@@ -439,7 +449,7 @@ export default function Home(props: any) {
             {/* 工具栏 */}
             <aside className="bg-zinc-900/60 backdrop-blur-xl border border-white/10 p-2 rounded-xl flex flex-wrap items-center justify-center gap-1 shadow-2xl">
               {[
-                { icon: Crosshair, label: 'Track Target', color: 'text-red-400', active: showCone, onClick: () => setShowCone(!showCone) },
+                { icon: Crosshair, label: 'Track Target', color: 'text-red-400', active: false, onClick: () => setFlyToTarget({ lon: currentData[COL.LON_R], lat: currentData[COL.LAT_R], alt: currentData[COL.ALT_R] }) },
                 { icon: Eye, label: 'Show Labels', color: 'text-blue-400', active: showLabels, onClick: () => setShowLabels(!showLabels) },
                 { icon: Layers, label: 'Flight Trail', color: 'text-purple-400', active: showTrail, onClick: () => setShowTrail(!showTrail) },
                 { icon: Globe, label: 'Signal Link', color: 'text-emerald-400', active: showSignalLink, onClick: () => setShowSignalLink(!showSignalLink) },
