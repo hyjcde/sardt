@@ -193,22 +193,22 @@ const CesiumMap = ({
         <Entity key="base-station" position={targetPos}>
           <BillboardGraphics 
             image={BASE_ICON}
-            width={36}
-            height={36}
+            width={48}
+            height={48}
             verticalOrigin={VerticalOrigin.BOTTOM}
             disableDepthTestDistance={Number.POSITIVE_INFINITY}
-            scaleByDistance={new NearFarScalar(100, 1.2, 2000, 0.6)}
+            scaleByDistance={new NearFarScalar(100, 1.3, 3000, 0.7)}
           />
           {showLabels && (
             <LabelGraphics 
               text={`GND STATION`} 
-              font="bold 11px monospace" fillColor={Color.WHITE} 
-              outlineColor={Color.BLACK} outlineWidth={3} 
-              pixelOffset={new Cartesian2(0, 8)} 
+              font="bold 16px sans-serif" fillColor={Color.WHITE} 
+              outlineColor={Color.BLACK} outlineWidth={4} 
+              pixelOffset={new Cartesian2(0, 12)} 
               verticalOrigin={VerticalOrigin.TOP}
               horizontalOrigin={HorizontalOrigin.CENTER}
               disableDepthTestDistance={Number.POSITIVE_INFINITY}
-              scaleByDistance={new NearFarScalar(100, 1.0, 2000, 0.5)}
+              scaleByDistance={new NearFarScalar(100, 1.2, 3000, 0.8)}
             />
           )}
         </Entity>
@@ -217,20 +217,20 @@ const CesiumMap = ({
         <Entity key="uav-marker" position={uavPos}>
           <BillboardGraphics 
             image={UAV_ICON}
-            width={40}
-            height={40}
+            width={52}
+            height={52}
             verticalOrigin={VerticalOrigin.CENTER}
             disableDepthTestDistance={Number.POSITIVE_INFINITY}
-            scaleByDistance={new NearFarScalar(100, 1.2, 2000, 0.6)}
+            scaleByDistance={new NearFarScalar(100, 1.3, 3000, 0.7)}
           />
           {showLabels && (
             <LabelGraphics 
               text={`UAV-01 | ${currentData[COL.ALT_R].toFixed(0)}m AGL`} 
-              font="bold 11px monospace" fillColor={Color.CYAN} outlineColor={Color.BLACK} outlineWidth={3}
-              verticalOrigin={VerticalOrigin.BOTTOM} pixelOffset={new Cartesian2(0, -26)} 
+              font="bold 16px sans-serif" fillColor={Color.CYAN} outlineColor={Color.BLACK} outlineWidth={4}
+              verticalOrigin={VerticalOrigin.BOTTOM} pixelOffset={new Cartesian2(0, -32)} 
               horizontalOrigin={HorizontalOrigin.CENTER}
               disableDepthTestDistance={Number.POSITIVE_INFINITY}
-              scaleByDistance={new NearFarScalar(100, 1.0, 2000, 0.5)}
+              scaleByDistance={new NearFarScalar(100, 1.2, 3000, 0.8)}
             />
           )}
         </Entity>
