@@ -79,7 +79,7 @@ export default function Home(props: any) {
   useEffect(() => {
     const interval = setInterval(() => {
       setDataIndex(prev => (prev + 1) % realData.length);
-    }, 300); 
+    }, 500); // 500ms 更新间隔，减少频闪
     return () => clearInterval(interval);
   }, []);
 
@@ -338,39 +338,91 @@ export default function Home(props: any) {
               </div>
             </section>
 
-            {/* 信号密度 */}
+            {/* 信号强度仪表盘 */}
             <section className="bg-zinc-900/50 backdrop-blur-xl border border-white/10 rounded-2xl p-4 shadow-2xl relative group hover:bg-zinc-900/70 transition-all">
               <CornerDecor className="top-0 left-0 border-t border-l" />
               <div className="flex items-center justify-between mb-3 pb-2.5 border-b border-white/10">
                 <div className="flex items-center gap-2.5 text-amber-400 font-black uppercase text-[10px] tracking-wider">
-                  <BarChart3 className="w-4 h-4" /> Signal Density
+                  <Gauge className="w-4 h-4" /> Signal Waveform
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2 h-2 bg-emerald-500 rounded-full" />
-                  <span className="text-[8px] text-zinc-500 uppercase">Good</span>
-                  <div className="w-2 h-2 bg-amber-500 rounded-full ml-2" />
-                  <span className="text-[8px] text-zinc-500 uppercase">Warn</span>
-                  <div className="w-2 h-2 bg-red-500 rounded-full ml-2" />
-                  <span className="text-[8px] text-zinc-500 uppercase">Poor</span>
+                <div className="flex items-center gap-2 bg-zinc-800/50 px-2 py-1 rounded-lg border border-white/5">
+                  <span className={`text-xs font-black ${currentData[COL.RSSI] > -40 ? 'text-emerald-400' : currentData[COL.RSSI] > -50 ? 'text-amber-400' : 'text-red-400'}`}>
+                    {currentData[COL.RSSI].toFixed(1)} dBm
+                  </span>
                 </div>
               </div>
-              <div className="h-[100px] w-full">
+              
+              {/* 波形图 */}
+              <div className="h-[80px] w-full relative">
+                <div className="absolute inset-0 bg-gradient-to-t from-emerald-500/5 to-transparent rounded-lg" />
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={history}>
-                    <XAxis dataKey="time" hide />
-                    <YAxis domain={[-100, 0]} hide />
-                    <Bar dataKey="rssi" radius={[2, 2, 0, 0]} isAnimationActive={false}>
-                      {history.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.rssi > -40 ? '#10b981' : entry.rssi > -60 ? '#f59e0b' : '#ef4444'} opacity={0.8} />
-                      ))}
-                    </Bar>
-                  </BarChart>
+                  <AreaChart data={history}>
+                    <defs>
+                      <linearGradient id="signalWaveGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#10b981" stopOpacity={0.6}/>
+                        <stop offset="50%" stopColor="#f59e0b" stopOpacity={0.3}/>
+                        <stop offset="100%" stopColor="#ef4444" stopOpacity={0.1}/>
+                      </linearGradient>
+                    </defs>
+                    <YAxis domain={[-80, -20]} hide />
+                    <Area 
+                      type="monotone" 
+                      dataKey="rssi" 
+                      stroke="#10b981" 
+                      strokeWidth={2}
+                      fill="url(#signalWaveGrad)" 
+                      isAnimationActive={false}
+                    />
+                    <ReferenceLine y={-40} stroke="#10b981" strokeDasharray="3 3" strokeOpacity={0.5} />
+                    <ReferenceLine y={-50} stroke="#f59e0b" strokeDasharray="3 3" strokeOpacity={0.5} />
+                    <ReferenceLine y={-60} stroke="#ef4444" strokeDasharray="3 3" strokeOpacity={0.5} />
+                  </AreaChart>
                 </ResponsiveContainer>
               </div>
-              <div className="flex justify-between mt-2 text-[8px] text-zinc-500 uppercase font-black">
-                <span>Min: {Math.min(...history.map(h => h.rssi)).toFixed(1)} dBm</span>
-                <span>Avg: {(history.reduce((a, h) => a + h.rssi, 0) / history.length).toFixed(1)} dBm</span>
-                <span>Max: {Math.max(...history.map(h => h.rssi)).toFixed(1)} dBm</span>
+              
+              {/* 信号强度指示条 */}
+              <div className="mt-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-[8px] text-zinc-500 uppercase w-8">RSSI</span>
+                  <div className="flex-1 h-2 bg-zinc-800 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full rounded-full transition-all duration-300"
+                      style={{ 
+                        width: `${Math.max(0, Math.min(100, (currentData[COL.RSSI] + 80) * 2))}%`,
+                        background: `linear-gradient(90deg, #ef4444, #f59e0b, #10b981)`
+                      }} 
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[8px] text-zinc-500 uppercase w-8">SNR</span>
+                  <div className="flex-1 h-2 bg-zinc-800 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full transition-all duration-300"
+                      style={{ width: `${Math.min(100, currentData[COL.SNR] * 5)}%` }} 
+                    />
+                  </div>
+                </div>
+              </div>
+              
+              {/* 统计数据 */}
+              <div className="flex justify-between mt-3 pt-2 border-t border-white/5 text-[8px] text-zinc-500 uppercase font-black">
+                <div className="text-center">
+                  <div className="text-emerald-400 text-sm font-mono">{Math.max(...history.map(h => h.rssi)).toFixed(0)}</div>
+                  <div>Peak</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-amber-400 text-sm font-mono">{(history.reduce((a, h) => a + h.rssi, 0) / history.length).toFixed(0)}</div>
+                  <div>Avg</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-red-400 text-sm font-mono">{Math.min(...history.map(h => h.rssi)).toFixed(0)}</div>
+                  <div>Min</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-cyan-400 text-sm font-mono">{(history[history.length - 1]?.snr || 0).toFixed(1)}</div>
+                  <div>SNR</div>
+                </div>
               </div>
             </section>
 

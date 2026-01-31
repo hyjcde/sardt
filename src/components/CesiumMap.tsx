@@ -15,7 +15,7 @@ import {
   PolylineDashMaterialProperty,
   CallbackProperty
 } from 'cesium';
-import React, { useEffect, useMemo, useState, useRef } from 'react';
+import React, { useEffect, useMemo, useState, useRef, memo } from 'react';
 import { CylinderGraphics, EllipseGraphics, Entity, ImageryLayer, LabelGraphics, PointGraphics, PolylineGraphics, useCesium, Viewer } from 'resium';
 
 Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJjMzQyNjJlOS0xMGZlLTQ2NzctYjdhYi0zZjM4NDkyMWM0ZjEiLCJpZCI6MTIwNTA5LCJpYXQiOjE2NzI5OTE1ODd9.xcQ46k8Ng1tBILRSptcG2h4l4vxHU_vdZePrfsOBqJA'; 
@@ -128,8 +128,8 @@ const CesiumMap = ({ currentData, fullHistory }: CesiumMapProps) => {
         <Entity key="uav-trail">
           <PolylineGraphics 
             positions={trailPositions} 
-            width={3} 
-            material={new PolylineDashMaterialProperty({ color: Color.CYAN.withAlpha(0.5), dashLength: 12 })} 
+            width={5} 
+            material={new PolylineDashMaterialProperty({ color: Color.CYAN.withAlpha(0.6), dashLength: 16 })} 
           />
         </Entity>
 
@@ -137,40 +137,42 @@ const CesiumMap = ({ currentData, fullHistory }: CesiumMapProps) => {
         <Entity key="signal-link">
           <PolylineGraphics 
             positions={[uavPos, targetPos]} 
-            width={5} 
-            material={new PolylineGlowMaterialProperty({ glowPower: 0.5, color: linkColor })} 
+            width={8} 
+            material={new PolylineGlowMaterialProperty({ glowPower: 0.6, color: linkColor })} 
           />
         </Entity>
 
         {/* 基站标记 */}
         <Entity key="base-station" position={targetPos}>
-          <PointGraphics pixelSize={12} color={Color.RED} outlineColor={Color.WHITE} outlineWidth={3} disableDepthTestDistance={Number.POSITIVE_INFINITY} />
+          <PointGraphics pixelSize={22} color={Color.RED} outlineColor={Color.WHITE} outlineWidth={4} disableDepthTestDistance={Number.POSITIVE_INFINITY} />
           <LabelGraphics 
             text={`BASE STATION\nSNR: ${currentData[COL.SNR].toFixed(1)}dB`} 
-            font="bold 11px monospace" fillColor={Color.WHITE} 
-            outlineColor={Color.BLACK} outlineWidth={3} pixelOffset={new Cartesian3(0, -25, 0)} 
-            verticalOrigin={VerticalOrigin.BOTTOM} disableDepthTestDistance={Number.POSITIVE_INFINITY} 
+            font="bold 16px sans-serif" fillColor={Color.WHITE} 
+            outlineColor={Color.BLACK} outlineWidth={4} pixelOffset={new Cartesian3(0, -35, 0)} 
+            verticalOrigin={VerticalOrigin.BOTTOM} disableDepthTestDistance={Number.POSITIVE_INFINITY}
+            scale={1.2}
           />
         </Entity>
 
         {/* UAV 点和标签 */}
         <Entity key="uav-marker" position={uavPos}>
-          <PointGraphics pixelSize={14} color={Color.CYAN} outlineColor={Color.WHITE} outlineWidth={3} disableDepthTestDistance={Number.POSITIVE_INFINITY} />
+          <PointGraphics pixelSize={26} color={Color.CYAN} outlineColor={Color.WHITE} outlineWidth={4} disableDepthTestDistance={Number.POSITIVE_INFINITY} />
           <LabelGraphics 
             text={`UAV-01\nALT: ${currentData[COL.ALT_R].toFixed(1)}m`} 
-            font="bold 12px monospace" fillColor={Color.CYAN} outlineColor={Color.BLACK} outlineWidth={3}
-            verticalOrigin={VerticalOrigin.BOTTOM} pixelOffset={new Cartesian3(0, -30, 0)} 
-            disableDepthTestDistance={Number.POSITIVE_INFINITY} 
+            font="bold 18px sans-serif" fillColor={Color.CYAN} outlineColor={Color.BLACK} outlineWidth={4}
+            verticalOrigin={VerticalOrigin.BOTTOM} pixelOffset={new Cartesian3(0, -45, 0)} 
+            disableDepthTestDistance={Number.POSITIVE_INFINITY}
+            scale={1.2}
           />
         </Entity>
         
-        {/* 扫描光锥 - 单独的 Entity，位置在 UAV 和地面的中点 */}
+        {/* 扫描光锥 - 从 UAV 向下投射的光束 */}
         <Entity key="scan-cone" position={conePos}>
           <CylinderGraphics 
             length={currentData[COL.ALT_R]} 
-            topRadius={1} 
-            bottomRadius={currentData[COL.ALT_R] * 0.15} 
-            material={Color.CYAN.withAlpha(0.08)} 
+            topRadius={3} 
+            bottomRadius={currentData[COL.ALT_R] * 0.25} 
+            material={Color.CYAN.withAlpha(0.25)} 
           />
         </Entity>
 
@@ -178,7 +180,17 @@ const CesiumMap = ({ currentData, fullHistory }: CesiumMapProps) => {
         <Entity key="ground-projection">
           <PolylineGraphics 
             positions={[uavPos, Cartesian3.fromDegrees(currentData[COL.LON_R], currentData[COL.LAT_R], 0)]} 
-            width={2} material={Color.WHITE.withAlpha(0.4)} 
+            width={4} material={Color.WHITE.withAlpha(0.5)} 
+          />
+        </Entity>
+        
+        {/* 地面投影圆环 */}
+        <Entity key="ground-circle" position={Cartesian3.fromDegrees(currentData[COL.LON_R], currentData[COL.LAT_R], 0)}>
+          <EllipseGraphics 
+            semiMajorAxis={10} 
+            semiMinorAxis={10} 
+            height={0}
+            material={Color.CYAN.withAlpha(0.4)}
           />
         </Entity>
       </Viewer>
@@ -216,4 +228,4 @@ const CesiumMap = ({ currentData, fullHistory }: CesiumMapProps) => {
   );
 };
 
-export default CesiumMap;
+export default memo(CesiumMap);
