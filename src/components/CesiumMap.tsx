@@ -87,11 +87,29 @@ const CesiumMap = ({ currentData, fullHistory }: CesiumMapProps) => {
     return Color.RED.withAlpha(0.7);
   }, [currentData[COL.SNR]]);
 
-  if (!mounted) return null;
+  // 使用 useMemo 稳定位置计算，减少重新渲染
+  const uavPos = useMemo(() => 
+    Cartesian3.fromDegrees(currentData[COL.LON_R], currentData[COL.LAT_R], currentData[COL.ALT_R]),
+    [currentData[COL.LON_R], currentData[COL.LAT_R], currentData[COL.ALT_R]]
+  );
+  
+  const targetPos = useMemo(() => 
+    Cartesian3.fromDegrees(currentData[COL.LON_B], currentData[COL.LAT_B], currentData[COL.ALT_B]),
+    [currentData[COL.LON_B], currentData[COL.LAT_B], currentData[COL.ALT_B]]
+  );
+  
+  // 光锥中心位置 - 设置在 UAV 和地面的中点，使光锥从地面延伸到 UAV
+  const conePos = useMemo(() => 
+    Cartesian3.fromDegrees(currentData[COL.LON_R], currentData[COL.LAT_R], currentData[COL.ALT_R] / 2),
+    [currentData[COL.LON_R], currentData[COL.LAT_R], currentData[COL.ALT_R]]
+  );
+  
+  const trailPositions = useMemo(() => 
+    fullHistory.map(d => Cartesian3.fromDegrees(d[COL.LON_R], d[COL.LAT_R], d[COL.ALT_R])),
+    [fullHistory]
+  );
 
-  const uavPos = Cartesian3.fromDegrees(currentData[COL.LON_R], currentData[COL.LAT_R], currentData[COL.ALT_R]);
-  const targetPos = Cartesian3.fromDegrees(currentData[COL.LON_B], currentData[COL.LAT_B], currentData[COL.ALT_B]);
-  const trailPositions = fullHistory.map(d => Cartesian3.fromDegrees(d[COL.LON_R], d[COL.LAT_R], d[COL.ALT_R]));
+  if (!mounted) return null;
 
   return (
     <>
@@ -106,51 +124,61 @@ const CesiumMap = ({ currentData, fullHistory }: CesiumMapProps) => {
         <SceneInitializer terrainProvider={terrainProvider} center={{ lon: currentData[COL.LON_R], lat: currentData[COL.LAT_R] }} />
         <ImageryLayer imageryProvider={satelliteImagery || fallbackImagery} />
 
-        <Entity>
+        {/* UAV 飞行轨迹 */}
+        <Entity key="uav-trail">
           <PolylineGraphics 
             positions={trailPositions} 
-            width={2} 
-            material={new PolylineDashMaterialProperty({ color: Color.CYAN.withAlpha(0.4), dashLength: 16 })} 
+            width={3} 
+            material={new PolylineDashMaterialProperty({ color: Color.CYAN.withAlpha(0.5), dashLength: 12 })} 
           />
         </Entity>
 
-        <Entity>
+        {/* UAV 与基站之间的信号连接线 */}
+        <Entity key="signal-link">
           <PolylineGraphics 
             positions={[uavPos, targetPos]} 
-            width={4} 
-            material={new PolylineGlowMaterialProperty({ glowPower: 0.4, color: linkColor })} 
+            width={5} 
+            material={new PolylineGlowMaterialProperty({ glowPower: 0.5, color: linkColor })} 
           />
         </Entity>
 
-        <Entity position={targetPos}>
-          <PointGraphics pixelSize={10} color={Color.RED} outlineColor={Color.WHITE} outlineWidth={2} disableDepthTestDistance={Number.POSITIVE_INFINITY} />
+        {/* 基站标记 */}
+        <Entity key="base-station" position={targetPos}>
+          <PointGraphics pixelSize={12} color={Color.RED} outlineColor={Color.WHITE} outlineWidth={3} disableDepthTestDistance={Number.POSITIVE_INFINITY} />
           <LabelGraphics 
             text={`BASE STATION\nSNR: ${currentData[COL.SNR].toFixed(1)}dB`} 
-            font="900 10px Orbitron, monospace" fillColor={Color.WHITE} 
-            outlineColor={Color.BLACK} outlineWidth={3} pixelOffset={new Cartesian3(0, -20, 0)} 
+            font="bold 11px monospace" fillColor={Color.WHITE} 
+            outlineColor={Color.BLACK} outlineWidth={3} pixelOffset={new Cartesian3(0, -25, 0)} 
             verticalOrigin={VerticalOrigin.BOTTOM} disableDepthTestDistance={Number.POSITIVE_INFINITY} 
           />
         </Entity>
 
-        <Entity position={uavPos}>
-          <PointGraphics pixelSize={12} color={Color.CYAN} outlineColor={Color.WHITE} outlineWidth={2} disableDepthTestDistance={Number.POSITIVE_INFINITY} />
+        {/* UAV 点和标签 */}
+        <Entity key="uav-marker" position={uavPos}>
+          <PointGraphics pixelSize={14} color={Color.CYAN} outlineColor={Color.WHITE} outlineWidth={3} disableDepthTestDistance={Number.POSITIVE_INFINITY} />
           <LabelGraphics 
             text={`UAV-01\nALT: ${currentData[COL.ALT_R].toFixed(1)}m`} 
-            font="bold 11px monospace" fillColor={Color.CYAN} outlineColor={Color.BLACK} outlineWidth={3}
-            verticalOrigin={VerticalOrigin.BOTTOM} pixelOffset={new Cartesian3(0, -25, 0)} 
+            font="bold 12px monospace" fillColor={Color.CYAN} outlineColor={Color.BLACK} outlineWidth={3}
+            verticalOrigin={VerticalOrigin.BOTTOM} pixelOffset={new Cartesian3(0, -30, 0)} 
             disableDepthTestDistance={Number.POSITIVE_INFINITY} 
           />
+        </Entity>
+        
+        {/* 扫描光锥 - 单独的 Entity，位置在 UAV 和地面的中点 */}
+        <Entity key="scan-cone" position={conePos}>
           <CylinderGraphics 
             length={currentData[COL.ALT_R]} 
-            topRadius={0.5} bottomRadius={currentData[COL.ALT_R] * 0.2} 
-            material={Color.CYAN.withAlpha(0.1)} 
+            topRadius={1} 
+            bottomRadius={currentData[COL.ALT_R] * 0.15} 
+            material={Color.CYAN.withAlpha(0.08)} 
           />
         </Entity>
 
-        <Entity>
+        {/* UAV 地面投影线 */}
+        <Entity key="ground-projection">
           <PolylineGraphics 
             positions={[uavPos, Cartesian3.fromDegrees(currentData[COL.LON_R], currentData[COL.LAT_R], 0)]} 
-            width={1} material={Color.WHITE.withAlpha(0.3)} 
+            width={2} material={Color.WHITE.withAlpha(0.4)} 
           />
         </Entity>
       </Viewer>

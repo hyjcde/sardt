@@ -300,34 +300,77 @@ export default function Home(props: any) {
           <div className="flex-1 relative" />
 
           {/* 右侧面板 */}
-          <div className="w-[400px] flex flex-col gap-3 pointer-events-auto shrink-0 overflow-y-auto scrollbar-hide">
+          <div className="w-[420px] flex flex-col gap-3 pointer-events-auto shrink-0 overflow-y-auto scrollbar-hide">
             
-            <aside className="bg-zinc-900/60 backdrop-blur-xl border border-white/10 p-1.5 rounded-xl flex items-center gap-1.5 self-end shadow-2xl">
-              {[Crosshair, Eye, Layers, Globe, Wind, MapIcon, Satellite, Network, Settings].map((Icon, i) => (
-                <button key={i} className="w-10 h-10 rounded-lg flex items-center justify-center hover:bg-white/10 transition-all group">
-                  <Icon className="w-4 h-4 text-zinc-400 group-hover:text-white transition-colors" />
+            {/* 工具栏 */}
+            <aside className="bg-zinc-900/60 backdrop-blur-xl border border-white/10 p-2 rounded-xl flex flex-wrap items-center justify-center gap-1 shadow-2xl">
+              {[
+                { icon: Crosshair, label: 'Target', color: 'hover:text-red-400' },
+                { icon: Eye, label: 'View', color: 'hover:text-blue-400' },
+                { icon: Layers, label: 'Layers', color: 'hover:text-purple-400' },
+                { icon: Globe, label: 'Globe', color: 'hover:text-emerald-400' },
+                { icon: Wind, label: 'Weather', color: 'hover:text-cyan-400' },
+                { icon: MapIcon, label: 'Map', color: 'hover:text-amber-400' },
+                { icon: Satellite, label: 'Sat', color: 'hover:text-pink-400' },
+                { icon: Network, label: 'Net', color: 'hover:text-indigo-400' },
+                { icon: Settings, label: 'Config', color: 'hover:text-zinc-300' }
+              ].map((item, i) => (
+                <button key={i} className={`w-10 h-10 rounded-lg flex items-center justify-center hover:bg-white/10 transition-all group relative`} title={item.label}>
+                  <item.icon className={`w-4 h-4 text-zinc-400 group-hover:text-white ${item.color} transition-colors`} />
                 </button>
               ))}
             </aside>
 
+            {/* 连接状态快速统计 */}
+            <section className="bg-zinc-900/50 backdrop-blur-xl border border-white/10 rounded-xl p-3 shadow-2xl">
+              <div className="grid grid-cols-4 gap-2">
+                {[
+                  { label: 'Packets', value: Math.floor(dataIndex * 1.5), color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+                  { label: 'Errors', value: dataIndex % 10 === 0 ? 1 : 0, color: 'text-red-400', bg: 'bg-red-500/10' },
+                  { label: 'Latency', value: `${12 + (dataIndex % 5)}ms`, color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
+                  { label: 'Bitrate', value: `${(currentData[COL.MCS] * 1.2).toFixed(1)}`, color: 'text-purple-400', bg: 'bg-purple-500/10' }
+                ].map((stat, i) => (
+                  <div key={i} className={`${stat.bg} rounded-lg p-2 text-center border border-white/5`}>
+                    <p className="text-[7px] text-zinc-500 uppercase font-black">{stat.label}</p>
+                    <p className={`text-sm font-black ${stat.color}`}>{stat.value}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+
             {/* 信号密度 */}
             <section className="bg-zinc-900/50 backdrop-blur-xl border border-white/10 rounded-2xl p-4 shadow-2xl relative group hover:bg-zinc-900/70 transition-all">
               <CornerDecor className="top-0 left-0 border-t border-l" />
-              <div className="flex items-center gap-2.5 mb-4 pb-2.5 border-b border-white/10 text-amber-400 font-black uppercase text-[10px] tracking-wider">
-                <BarChart3 className="w-4 h-4" /> Signal Density
+              <div className="flex items-center justify-between mb-3 pb-2.5 border-b border-white/10">
+                <div className="flex items-center gap-2.5 text-amber-400 font-black uppercase text-[10px] tracking-wider">
+                  <BarChart3 className="w-4 h-4" /> Signal Density
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 bg-emerald-500 rounded-full" />
+                  <span className="text-[8px] text-zinc-500 uppercase">Good</span>
+                  <div className="w-2 h-2 bg-amber-500 rounded-full ml-2" />
+                  <span className="text-[8px] text-zinc-500 uppercase">Warn</span>
+                  <div className="w-2 h-2 bg-red-500 rounded-full ml-2" />
+                  <span className="text-[8px] text-zinc-500 uppercase">Poor</span>
+                </div>
               </div>
-              <div className="h-[120px] w-full">
+              <div className="h-[100px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={history}>
                     <XAxis dataKey="time" hide />
                     <YAxis domain={[-100, 0]} hide />
                     <Bar dataKey="rssi" radius={[2, 2, 0, 0]} isAnimationActive={false}>
                       {history.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.rssi > -40 ? '#10b981' : entry.rssi > -60 ? '#f59e0b' : '#ef4444'} opacity={0.7} />
+                        <Cell key={`cell-${index}`} fill={entry.rssi > -40 ? '#10b981' : entry.rssi > -60 ? '#f59e0b' : '#ef4444'} opacity={0.8} />
                       ))}
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
+              </div>
+              <div className="flex justify-between mt-2 text-[8px] text-zinc-500 uppercase font-black">
+                <span>Min: {Math.min(...history.map(h => h.rssi)).toFixed(1)} dBm</span>
+                <span>Avg: {(history.reduce((a, h) => a + h.rssi, 0) / history.length).toFixed(1)} dBm</span>
+                <span>Max: {Math.max(...history.map(h => h.rssi)).toFixed(1)} dBm</span>
               </div>
             </section>
 
