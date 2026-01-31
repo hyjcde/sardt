@@ -37,7 +37,7 @@ import {
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
 import { useEffect, useMemo, useState } from 'react';
-import { Area, AreaChart, Bar, BarChart, Cell, Line, LineChart, Pie, PieChart, PolarAngleAxis, PolarGrid, Radar, RadarChart, ReferenceLine, XAxis, YAxis, Tooltip, ResponsiveContainer, Scatter, ScatterChart, ZAxis } from 'recharts';
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Line, LineChart, Pie, PieChart, PolarAngleAxis, PolarGrid, Radar, RadarChart, ReferenceLine, XAxis, YAxis, Tooltip, ResponsiveContainer, Scatter, ScatterChart, ZAxis } from 'recharts';
 import realData from '@/data/realData.json';
 
 const CesiumMap = dynamic(() => import('@/components/CesiumMap'), { 
@@ -227,43 +227,131 @@ export default function Home(props: any) {
               </div>
 
               <div className="space-y-4">
+                {/* RSSI Timeline - 专业图表 */}
                 <div className="bg-black/30 rounded-xl p-3 border border-white/5 relative">
                   <div className="flex justify-between items-center mb-2">
                     <p className="text-[8px] text-zinc-400 uppercase font-black tracking-widest flex items-center gap-2">
                       <TrendingUp className="w-3.5 h-3.5 text-amber-500" /> RSSI Timeline
                     </p>
-                    <span className="text-xs font-black text-amber-400">{currentData[COL.RSSI].toFixed(1)} dBm</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[7px] text-zinc-500">NOW:</span>
+                      <span className="text-xs font-black text-amber-400">{currentData[COL.RSSI].toFixed(1)} dBm</span>
+                    </div>
                   </div>
-                  <div className="h-[80px] w-full">
+                  <div className="h-[100px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={history}>
-                        <YAxis domain={['auto', 'auto']} hide />
-                        <Line type="monotone" dataKey="rssi" stroke="#f59e0b" strokeWidth={2} dot={false} isAnimationActive={false} />
+                      <LineChart data={history} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
+                        <defs>
+                          <linearGradient id="rssiLineGrad" x1="0" y1="0" x2="1" y2="0">
+                            <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.3}/>
+                            <stop offset="100%" stopColor="#f59e0b" stopOpacity={1}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#222" strokeOpacity={0.5} />
+                        <XAxis 
+                          dataKey="time" 
+                          axisLine={{ stroke: '#444' }}
+                          tickLine={{ stroke: '#444' }}
+                          tick={{ fill: '#888', fontSize: 8 }}
+                          tickFormatter={(v) => `${v}s`}
+                          interval="preserveStartEnd"
+                        />
+                        <YAxis 
+                          domain={[-60, -30]}
+                          axisLine={{ stroke: '#444' }}
+                          tickLine={{ stroke: '#444' }}
+                          tick={{ fill: '#888', fontSize: 8 }}
+                          tickFormatter={(v) => `${v}`}
+                          width={30}
+                          tickCount={4}
+                          label={{ value: 'dBm', angle: -90, position: 'insideLeft', fill: '#666', fontSize: 8, dy: 15 }}
+                        />
+                        <ReferenceLine y={-40} stroke="#10b981" strokeDasharray="3 3" strokeOpacity={0.5} />
+                        <ReferenceLine y={-50} stroke="#f59e0b" strokeDasharray="3 3" strokeOpacity={0.5} />
+                        <Tooltip 
+                          contentStyle={{ background: '#1a1a1a', border: '1px solid #333', borderRadius: 8, fontSize: 10 }}
+                          labelFormatter={(v) => `T+${v}s`}
+                          formatter={(v) => [`${Number(v).toFixed(1)} dBm`, 'RSSI']}
+                        />
+                        <Line 
+                          type="monotone" 
+                          dataKey="rssi" 
+                          stroke="url(#rssiLineGrad)" 
+                          strokeWidth={2} 
+                          dot={false} 
+                          isAnimationActive={false}
+                          activeDot={{ r: 4, fill: '#f59e0b', stroke: '#fff' }}
+                        />
                       </LineChart>
                     </ResponsiveContainer>
                   </div>
+                  <div className="flex justify-between mt-1 text-[7px] text-zinc-600 uppercase">
+                    <span>Range: {Math.min(...history.map(h => h.rssi)).toFixed(0)} ~ {Math.max(...history.map(h => h.rssi)).toFixed(0)} dBm</span>
+                    <span>Samples: {history.length}</span>
+                  </div>
                 </div>
 
+                {/* SNR Quality - 专业图表 */}
                 <div className="bg-black/30 rounded-xl p-3 border border-white/5 relative">
                   <div className="flex justify-between items-center mb-2">
                     <p className="text-[8px] text-zinc-400 uppercase font-black tracking-widest flex items-center gap-2">
                       <Activity className="w-3.5 h-3.5 text-emerald-500" /> SNR Quality
                     </p>
-                    <span className="text-xs font-black text-emerald-400">{currentData[COL.SNR].toFixed(1)} dB</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[7px] text-zinc-500">NOW:</span>
+                      <span className="text-xs font-black text-emerald-400">{currentData[COL.SNR].toFixed(1)} dB</span>
+                    </div>
                   </div>
-                  <div className="h-[80px] w-full">
+                  <div className="h-[100px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={history}>
+                      <AreaChart data={history} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
                         <defs>
                           <linearGradient id="snrGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                            <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.4}/>
+                            <stop offset="95%" stopColor="#10b981" stopOpacity={0.05}/>
                           </linearGradient>
                         </defs>
-                        <YAxis domain={['auto', 'auto']} hide />
-                        <Area type="monotone" dataKey="snr" stroke="#10b981" fill="url(#snrGrad)" strokeWidth={2} isAnimationActive={false} />
+                        <CartesianGrid strokeDasharray="3 3" stroke="#222" strokeOpacity={0.5} />
+                        <XAxis 
+                          dataKey="time" 
+                          axisLine={{ stroke: '#444' }}
+                          tickLine={{ stroke: '#444' }}
+                          tick={{ fill: '#888', fontSize: 8 }}
+                          tickFormatter={(v) => `${v}s`}
+                          interval="preserveStartEnd"
+                        />
+                        <YAxis 
+                          domain={[0, 20]}
+                          axisLine={{ stroke: '#444' }}
+                          tickLine={{ stroke: '#444' }}
+                          tick={{ fill: '#888', fontSize: 8 }}
+                          tickFormatter={(v) => `${v}`}
+                          width={30}
+                          tickCount={5}
+                          label={{ value: 'dB', angle: -90, position: 'insideLeft', fill: '#666', fontSize: 8, dy: 10 }}
+                        />
+                        <ReferenceLine y={15} stroke="#10b981" strokeDasharray="3 3" strokeOpacity={0.5} label={{ value: 'Good', fill: '#10b981', fontSize: 7, position: 'right' }} />
+                        <ReferenceLine y={10} stroke="#f59e0b" strokeDasharray="3 3" strokeOpacity={0.5} label={{ value: 'Fair', fill: '#f59e0b', fontSize: 7, position: 'right' }} />
+                        <Tooltip 
+                          contentStyle={{ background: '#1a1a1a', border: '1px solid #333', borderRadius: 8, fontSize: 10 }}
+                          labelFormatter={(v) => `T+${v}s`}
+                          formatter={(v) => [`${Number(v).toFixed(1)} dB`, 'SNR']}
+                        />
+                        <Area 
+                          type="monotone" 
+                          dataKey="snr" 
+                          stroke="#10b981" 
+                          fill="url(#snrGrad)" 
+                          strokeWidth={2} 
+                          isAnimationActive={false}
+                          activeDot={{ r: 4, fill: '#10b981', stroke: '#fff' }}
+                        />
                       </AreaChart>
                     </ResponsiveContainer>
+                  </div>
+                  <div className="flex justify-between mt-1 text-[7px] text-zinc-600 uppercase">
+                    <span>Avg: {(history.reduce((a, h) => a + h.snr, 0) / history.length).toFixed(1)} dB</span>
+                    <span>Quality: {currentData[COL.SNR] > 15 ? 'Excellent' : currentData[COL.SNR] > 10 ? 'Good' : 'Fair'}</span>
                   </div>
                 </div>
               </div>
@@ -352,30 +440,44 @@ export default function Home(props: any) {
                 </div>
               </div>
               
-              {/* 波形图 */}
-              <div className="h-[80px] w-full relative">
-                <div className="absolute inset-0 bg-gradient-to-t from-emerald-500/5 to-transparent rounded-lg" />
+              {/* 波形图 - 专业版 */}
+              <div className="h-[90px] w-full relative">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={history}>
+                  <AreaChart data={history} margin={{ top: 5, right: 5, left: -5, bottom: 5 }}>
                     <defs>
                       <linearGradient id="signalWaveGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#10b981" stopOpacity={0.6}/>
-                        <stop offset="50%" stopColor="#f59e0b" stopOpacity={0.3}/>
+                        <stop offset="0%" stopColor="#10b981" stopOpacity={0.5}/>
+                        <stop offset="50%" stopColor="#f59e0b" stopOpacity={0.25}/>
                         <stop offset="100%" stopColor="#ef4444" stopOpacity={0.1}/>
                       </linearGradient>
                     </defs>
-                    <YAxis domain={[-80, -20]} hide />
+                    <CartesianGrid strokeDasharray="2 2" stroke="#333" strokeOpacity={0.3} />
+                    <XAxis 
+                      dataKey="time" 
+                      axisLine={{ stroke: '#444' }}
+                      tickLine={false}
+                      tick={{ fill: '#666', fontSize: 7 }}
+                      tickFormatter={(v) => `${v}s`}
+                      interval="preserveStartEnd"
+                    />
+                    <YAxis 
+                      domain={[-60, -30]} 
+                      axisLine={{ stroke: '#444' }}
+                      tickLine={false}
+                      tick={{ fill: '#666', fontSize: 7 }}
+                      width={25}
+                      tickCount={4}
+                    />
                     <Area 
                       type="monotone" 
                       dataKey="rssi" 
                       stroke="#10b981" 
-                      strokeWidth={2}
+                      strokeWidth={1.5}
                       fill="url(#signalWaveGrad)" 
                       isAnimationActive={false}
                     />
-                    <ReferenceLine y={-40} stroke="#10b981" strokeDasharray="3 3" strokeOpacity={0.5} />
-                    <ReferenceLine y={-50} stroke="#f59e0b" strokeDasharray="3 3" strokeOpacity={0.5} />
-                    <ReferenceLine y={-60} stroke="#ef4444" strokeDasharray="3 3" strokeOpacity={0.5} />
+                    <ReferenceLine y={-40} stroke="#10b981" strokeDasharray="2 2" strokeOpacity={0.4} />
+                    <ReferenceLine y={-50} stroke="#f59e0b" strokeDasharray="2 2" strokeOpacity={0.4} />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>

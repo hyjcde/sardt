@@ -2,21 +2,53 @@
 
 import {
   Cartesian3,
+  Cartesian2,
   Math as CesiumMath,
   Color,
   createWorldImageryAsync,
   createWorldTerrainAsync,
   HeightReference,
+  HorizontalOrigin,
   Ion,
   JulianDate,
   OpenStreetMapImageryProvider,
   PolylineGlowMaterialProperty,
   VerticalOrigin,
   PolylineDashMaterialProperty,
-  CallbackProperty
+  NearFarScalar
 } from 'cesium';
-import React, { useEffect, useMemo, useState, useRef, memo } from 'react';
-import { CylinderGraphics, EllipseGraphics, Entity, ImageryLayer, LabelGraphics, PointGraphics, PolylineGraphics, useCesium, Viewer } from 'resium';
+import React, { useEffect, useMemo, useState, memo } from 'react';
+import { BillboardGraphics, CylinderGraphics, EllipseGraphics, Entity, ImageryLayer, LabelGraphics, PointGraphics, PolylineGraphics, useCesium, Viewer } from 'resium';
+
+// UAV 图标 SVG - 无人机形状
+const UAV_ICON = `data:image/svg+xml,${encodeURIComponent(`
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+  <defs>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <polygon points="24,4 28,20 44,24 28,28 24,44 20,28 4,24 20,20" fill="#00ffff" stroke="#ffffff" stroke-width="2" filter="url(#glow)"/>
+  <circle cx="24" cy="24" r="4" fill="#ffffff"/>
+</svg>
+`)}`;
+
+// 基站图标 SVG - 信号塔形状
+const BASE_ICON = `data:image/svg+xml,${encodeURIComponent(`
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+  <defs>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <path d="M24 4 L32 44 L24 38 L16 44 Z" fill="#ff4444" stroke="#ffffff" stroke-width="2" filter="url(#glow)"/>
+  <circle cx="24" cy="12" r="5" fill="#ffffff" stroke="#ff4444" stroke-width="2"/>
+  <path d="M14 18 Q24 8 34 18" fill="none" stroke="#ff4444" stroke-width="2" opacity="0.6"/>
+  <path d="M10 22 Q24 8 38 22" fill="none" stroke="#ff4444" stroke-width="2" opacity="0.4"/>
+</svg>
+`)}`;
 
 Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJjMzQyNjJlOS0xMGZlLTQ2NzctYjdhYi0zZjM4NDkyMWM0ZjEiLCJpZCI6MTIwNTA5LCJpYXQiOjE2NzI5OTE1ODd9.xcQ46k8Ng1tBILRSptcG2h4l4vxHU_vdZePrfsOBqJA'; 
 
@@ -142,55 +174,84 @@ const CesiumMap = ({ currentData, fullHistory }: CesiumMapProps) => {
           />
         </Entity>
 
-        {/* 基站标记 */}
+        {/* 基站标记 - 使用 Billboard 图标 */}
         <Entity key="base-station" position={targetPos}>
-          <PointGraphics pixelSize={24} color={Color.RED} outlineColor={Color.WHITE} outlineWidth={4} disableDepthTestDistance={Number.POSITIVE_INFINITY} />
+          <BillboardGraphics 
+            image={BASE_ICON}
+            width={36}
+            height={36}
+            verticalOrigin={VerticalOrigin.BOTTOM}
+            disableDepthTestDistance={Number.POSITIVE_INFINITY}
+            scaleByDistance={new NearFarScalar(100, 1.2, 2000, 0.6)}
+          />
           <LabelGraphics 
-            text={`BASE STATION\nSNR: ${currentData[COL.SNR].toFixed(1)}dB`} 
-            font="bold 16px sans-serif" fillColor={Color.WHITE} 
-            outlineColor={Color.BLACK} outlineWidth={4} pixelOffset={new Cartesian3(50, 0, 0)} 
-            verticalOrigin={VerticalOrigin.CENTER} disableDepthTestDistance={Number.POSITIVE_INFINITY}
-            scale={1.0}
+            text={`GND STATION`} 
+            font="bold 11px monospace" fillColor={Color.WHITE} 
+            outlineColor={Color.BLACK} outlineWidth={3} 
+            pixelOffset={new Cartesian2(0, 8)} 
+            verticalOrigin={VerticalOrigin.TOP}
+            horizontalOrigin={HorizontalOrigin.CENTER}
+            disableDepthTestDistance={Number.POSITIVE_INFINITY}
+            scaleByDistance={new NearFarScalar(100, 1.0, 2000, 0.5)}
           />
         </Entity>
 
-        {/* UAV 点和标签 */}
+        {/* UAV 标记 - 使用 Billboard 图标 */}
         <Entity key="uav-marker" position={uavPos}>
-          <PointGraphics pixelSize={28} color={Color.CYAN} outlineColor={Color.WHITE} outlineWidth={5} disableDepthTestDistance={Number.POSITIVE_INFINITY} />
-          <LabelGraphics 
-            text={`UAV-01\nALT: ${currentData[COL.ALT_R].toFixed(1)}m`} 
-            font="bold 18px sans-serif" fillColor={Color.CYAN} outlineColor={Color.BLACK} outlineWidth={4}
-            verticalOrigin={VerticalOrigin.BOTTOM} pixelOffset={new Cartesian3(0, -50, 0)} 
+          <BillboardGraphics 
+            image={UAV_ICON}
+            width={40}
+            height={40}
+            verticalOrigin={VerticalOrigin.CENTER}
             disableDepthTestDistance={Number.POSITIVE_INFINITY}
-            scale={1.0}
+            scaleByDistance={new NearFarScalar(100, 1.2, 2000, 0.6)}
+          />
+          <LabelGraphics 
+            text={`UAV-01 | ${currentData[COL.ALT_R].toFixed(0)}m AGL`} 
+            font="bold 11px monospace" fillColor={Color.CYAN} outlineColor={Color.BLACK} outlineWidth={3}
+            verticalOrigin={VerticalOrigin.BOTTOM} pixelOffset={new Cartesian2(0, -26)} 
+            horizontalOrigin={HorizontalOrigin.CENTER}
+            disableDepthTestDistance={Number.POSITIVE_INFINITY}
+            scaleByDistance={new NearFarScalar(100, 1.0, 2000, 0.5)}
           />
         </Entity>
         
-        {/* 扫描光锥 - 从 UAV 向下投射的明亮光束 */}
+        {/* 扫描光锥 - 从 UAV 向下投射的光束 */}
         <Entity key="scan-cone" position={conePos}>
           <CylinderGraphics 
             length={currentData[COL.ALT_R]} 
-            topRadius={5} 
-            bottomRadius={currentData[COL.ALT_R] * 0.3} 
-            material={Color.CYAN.withAlpha(0.35)} 
+            topRadius={2} 
+            bottomRadius={currentData[COL.ALT_R] * 0.2} 
+            material={Color.CYAN.withAlpha(0.2)} 
           />
         </Entity>
 
-        {/* UAV 地面投影线 */}
+        {/* UAV 地面投影线 - 虚线样式 */}
         <Entity key="ground-projection">
           <PolylineGraphics 
             positions={[uavPos, Cartesian3.fromDegrees(currentData[COL.LON_R], currentData[COL.LAT_R], 0)]} 
-            width={4} material={Color.WHITE.withAlpha(0.5)} 
+            width={2} 
+            material={new PolylineDashMaterialProperty({ color: Color.WHITE.withAlpha(0.4), dashLength: 8 })} 
           />
         </Entity>
         
-        {/* 地面投影圆环 */}
-        <Entity key="ground-circle" position={Cartesian3.fromDegrees(currentData[COL.LON_R], currentData[COL.LAT_R], 0)}>
-          <EllipseGraphics 
-            semiMajorAxis={10} 
-            semiMinorAxis={10} 
-            height={0}
-            material={Color.CYAN.withAlpha(0.4)}
+        {/* 地面投影十字标记 */}
+        <Entity key="ground-cross-ns">
+          <PolylineGraphics 
+            positions={[
+              Cartesian3.fromDegrees(currentData[COL.LON_R], currentData[COL.LAT_R] - 0.00003, 0.2),
+              Cartesian3.fromDegrees(currentData[COL.LON_R], currentData[COL.LAT_R] + 0.00003, 0.2)
+            ]} 
+            width={2} material={Color.CYAN.withAlpha(0.6)} 
+          />
+        </Entity>
+        <Entity key="ground-cross-ew">
+          <PolylineGraphics 
+            positions={[
+              Cartesian3.fromDegrees(currentData[COL.LON_R] - 0.00003, currentData[COL.LAT_R], 0.2),
+              Cartesian3.fromDegrees(currentData[COL.LON_R] + 0.00003, currentData[COL.LAT_R], 0.2)
+            ]} 
+            width={2} material={Color.CYAN.withAlpha(0.6)} 
           />
         </Entity>
       </Viewer>
