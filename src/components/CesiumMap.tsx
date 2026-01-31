@@ -92,6 +92,7 @@ const CesiumMap = ({ currentData, fullHistory }: CesiumMapProps) => {
       <Viewer 
         full timeline={false} animation={false} baseLayerPicker={false} fullscreenButton={false}
         geocoder={false} homeButton={false} infoBox={false} selectionIndicator={false}
+        navigationHelpButton={false} navigationInstructionsInitiallyVisible={false}
         scene3DOnly={true} skyAtmosphere={true} contextOptions={CONTEXT_OPTIONS}
         style={{ width: '100vw', height: '100vh' }}
       >
@@ -146,6 +147,15 @@ const CesiumMap = ({ currentData, fullHistory }: CesiumMapProps) => {
           />
         </Entity>
       </Viewer>
+
+      <style jsx global>{`
+        .cesium-viewer, .cesium-viewer-cesiumWidgetContainer, .cesium-widget, .cesium-widget canvas {
+          width: 100% !important; height: 100% !important; position: absolute !important; top: 0; left: 0;
+        }
+        .cesium-viewer-bottom { display: none !important; }
+        .cesium-navigation-help { display: none !important; }
+        .cesium-widget-credits { display: none !important; }
+      `}</style>
     </div>
   );
 };
