@@ -99,7 +99,7 @@ export default function Home(props: any) {
   }, [dataIndex, currentData]);
 
   return (
-    <main className="relative w-screen h-screen text-zinc-200 font-mono overflow-hidden bg-zinc-950">
+    <main className="relative w-screen h-screen text-zinc-200 font-mono overflow-hidden">
       <CesiumMap currentData={currentData} fullHistory={fullHistory} />
 
       {/* 背景装饰 */}

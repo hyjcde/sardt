@@ -34,9 +34,13 @@ const SceneInitializer = ({ terrainProvider, center }: { terrainProvider: any, c
       viewer.scene.light.intensity = 3.5;
       
       // 启用大气和雾效，防止背景全黑
-      viewer.scene.skyAtmosphere.show = true;
-      viewer.scene.fog.enabled = true;
-      viewer.scene.fog.density = 0.0002;
+      if (viewer.scene.skyAtmosphere) {
+        viewer.scene.skyAtmosphere.show = true;
+      }
+      if (viewer.scene.fog) {
+        viewer.scene.fog.enabled = true;
+        viewer.scene.fog.density = 0.0002;
+      }
 
       viewer.camera.flyTo({
         destination: Cartesian3.fromDegrees(center.lon, center.lat - 0.003, 500),
@@ -65,9 +69,11 @@ const CesiumMap = ({ currentData, fullHistory }: CesiumMapProps) => {
     setMounted(true);
     if (typeof window !== 'undefined') {
       (window as any).CESIUM_BASE_URL = '/cesium';
-      createWorldTerrainAsync({ requestVertexNormals: true }).then(setTerrainProvider);
+      createWorldTerrainAsync({ requestVertexNormals: true }).then(setTerrainProvider).catch(err => {
+        console.warn("Terrain loading failed:", err);
+      });
       createWorldImageryAsync().then(setSatelliteImagery).catch(err => {
-        console.error("Cesium World Imagery failed to load, using fallback", err);
+        console.warn("Cesium World Imagery failed to load, using fallback", err);
       });
     }
   }, []);
@@ -88,13 +94,14 @@ const CesiumMap = ({ currentData, fullHistory }: CesiumMapProps) => {
   const trailPositions = fullHistory.map(d => Cartesian3.fromDegrees(d[COL.LON_R], d[COL.LAT_R], d[COL.ALT_R]));
 
   return (
-    <div className="fixed inset-0 z-0 overflow-hidden bg-zinc-950">
+    <>
       <Viewer 
-        full timeline={false} animation={false} baseLayerPicker={false} fullscreenButton={false}
+        full
+        timeline={false} animation={false} baseLayerPicker={false} fullscreenButton={false}
         geocoder={false} homeButton={false} infoBox={false} selectionIndicator={false}
         navigationHelpButton={false} navigationInstructionsInitiallyVisible={false}
-        scene3DOnly={true} skyAtmosphere={true} contextOptions={CONTEXT_OPTIONS}
-        style={{ width: '100vw', height: '100vh' }}
+        sceneModePicker={false} projectionPicker={false}
+        scene3DOnly={true} contextOptions={CONTEXT_OPTIONS}
       >
         <SceneInitializer terrainProvider={terrainProvider} center={{ lon: currentData[COL.LON_R], lat: currentData[COL.LAT_R] }} />
         <ImageryLayer imageryProvider={satelliteImagery || fallbackImagery} />
@@ -149,14 +156,35 @@ const CesiumMap = ({ currentData, fullHistory }: CesiumMapProps) => {
       </Viewer>
 
       <style jsx global>{`
-        .cesium-viewer, .cesium-viewer-cesiumWidgetContainer, .cesium-widget, .cesium-widget canvas {
-          width: 100% !important; height: 100% !important; position: absolute !important; top: 0; left: 0;
+        .cesium-viewer {
+          position: fixed !important;
+          top: 0 !important;
+          left: 0 !important;
+          right: 0 !important;
+          bottom: 0 !important;
+          width: 100vw !important;
+          height: 100vh !important;
+          z-index: 0 !important;
         }
-        .cesium-viewer-bottom { display: none !important; }
-        .cesium-navigation-help { display: none !important; }
-        .cesium-widget-credits { display: none !important; }
+        .cesium-viewer-cesiumWidgetContainer,
+        .cesium-widget,
+        .cesium-widget canvas {
+          width: 100% !important;
+          height: 100% !important;
+        }
+        .cesium-viewer-bottom,
+        .cesium-navigation-help,
+        .cesium-widget-credits,
+        .cesium-credit-logoContainer,
+        .cesium-credit-textContainer,
+        .cesium-viewer .cesium-viewer-bottom,
+        [class*="cesium-credit"] {
+          display: none !important;
+          visibility: hidden !important;
+          opacity: 0 !important;
+        }
       `}</style>
-    </div>
+    </>
   );
 };
 
