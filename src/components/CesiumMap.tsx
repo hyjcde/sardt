@@ -88,9 +88,20 @@ const SceneInitializer = ({ terrainProvider, center }: { terrainProvider: any, c
 interface CesiumMapProps {
   currentData: any[];
   fullHistory: any[][];
+  showTrail?: boolean;
+  showCone?: boolean;
+  showLabels?: boolean;
+  showSignalLink?: boolean;
 }
 
-const CesiumMap = ({ currentData, fullHistory }: CesiumMapProps) => {
+const CesiumMap = ({ 
+  currentData, 
+  fullHistory,
+  showTrail = true,
+  showCone = true,
+  showLabels = true,
+  showSignalLink = true
+}: CesiumMapProps) => {
   const [mounted, setMounted] = useState(false);
   const [terrainProvider, setTerrainProvider] = useState<any>(undefined);
   const [satelliteImagery, setSatelliteImagery] = useState<any>(undefined);
@@ -157,22 +168,26 @@ const CesiumMap = ({ currentData, fullHistory }: CesiumMapProps) => {
         <ImageryLayer imageryProvider={satelliteImagery || fallbackImagery} />
 
         {/* UAV 飞行轨迹 */}
-        <Entity key="uav-trail">
-          <PolylineGraphics 
-            positions={trailPositions} 
-            width={5} 
-            material={new PolylineDashMaterialProperty({ color: Color.CYAN.withAlpha(0.6), dashLength: 16 })} 
-          />
-        </Entity>
+        {showTrail && (
+          <Entity key="uav-trail">
+            <PolylineGraphics 
+              positions={trailPositions} 
+              width={5} 
+              material={new PolylineDashMaterialProperty({ color: Color.CYAN.withAlpha(0.6), dashLength: 16 })} 
+            />
+          </Entity>
+        )}
 
         {/* UAV 与基站之间的信号连接线 */}
-        <Entity key="signal-link">
-          <PolylineGraphics 
-            positions={[uavPos, targetPos]} 
-            width={8} 
-            material={new PolylineGlowMaterialProperty({ glowPower: 0.6, color: linkColor })} 
-          />
-        </Entity>
+        {showSignalLink && (
+          <Entity key="signal-link">
+            <PolylineGraphics 
+              positions={[uavPos, targetPos]} 
+              width={8} 
+              material={new PolylineGlowMaterialProperty({ glowPower: 0.6, color: linkColor })} 
+            />
+          </Entity>
+        )}
 
         {/* 基站标记 - 使用 Billboard 图标 */}
         <Entity key="base-station" position={targetPos}>
@@ -184,16 +199,18 @@ const CesiumMap = ({ currentData, fullHistory }: CesiumMapProps) => {
             disableDepthTestDistance={Number.POSITIVE_INFINITY}
             scaleByDistance={new NearFarScalar(100, 1.2, 2000, 0.6)}
           />
-          <LabelGraphics 
-            text={`GND STATION`} 
-            font="bold 11px monospace" fillColor={Color.WHITE} 
-            outlineColor={Color.BLACK} outlineWidth={3} 
-            pixelOffset={new Cartesian2(0, 8)} 
-            verticalOrigin={VerticalOrigin.TOP}
-            horizontalOrigin={HorizontalOrigin.CENTER}
-            disableDepthTestDistance={Number.POSITIVE_INFINITY}
-            scaleByDistance={new NearFarScalar(100, 1.0, 2000, 0.5)}
-          />
+          {showLabels && (
+            <LabelGraphics 
+              text={`GND STATION`} 
+              font="bold 11px monospace" fillColor={Color.WHITE} 
+              outlineColor={Color.BLACK} outlineWidth={3} 
+              pixelOffset={new Cartesian2(0, 8)} 
+              verticalOrigin={VerticalOrigin.TOP}
+              horizontalOrigin={HorizontalOrigin.CENTER}
+              disableDepthTestDistance={Number.POSITIVE_INFINITY}
+              scaleByDistance={new NearFarScalar(100, 1.0, 2000, 0.5)}
+            />
+          )}
         </Entity>
 
         {/* UAV 标记 - 使用 Billboard 图标 */}
@@ -206,25 +223,29 @@ const CesiumMap = ({ currentData, fullHistory }: CesiumMapProps) => {
             disableDepthTestDistance={Number.POSITIVE_INFINITY}
             scaleByDistance={new NearFarScalar(100, 1.2, 2000, 0.6)}
           />
-          <LabelGraphics 
-            text={`UAV-01 | ${currentData[COL.ALT_R].toFixed(0)}m AGL`} 
-            font="bold 11px monospace" fillColor={Color.CYAN} outlineColor={Color.BLACK} outlineWidth={3}
-            verticalOrigin={VerticalOrigin.BOTTOM} pixelOffset={new Cartesian2(0, -26)} 
-            horizontalOrigin={HorizontalOrigin.CENTER}
-            disableDepthTestDistance={Number.POSITIVE_INFINITY}
-            scaleByDistance={new NearFarScalar(100, 1.0, 2000, 0.5)}
-          />
+          {showLabels && (
+            <LabelGraphics 
+              text={`UAV-01 | ${currentData[COL.ALT_R].toFixed(0)}m AGL`} 
+              font="bold 11px monospace" fillColor={Color.CYAN} outlineColor={Color.BLACK} outlineWidth={3}
+              verticalOrigin={VerticalOrigin.BOTTOM} pixelOffset={new Cartesian2(0, -26)} 
+              horizontalOrigin={HorizontalOrigin.CENTER}
+              disableDepthTestDistance={Number.POSITIVE_INFINITY}
+              scaleByDistance={new NearFarScalar(100, 1.0, 2000, 0.5)}
+            />
+          )}
         </Entity>
         
         {/* 扫描光锥 - 从 UAV 向下投射的光束 */}
-        <Entity key="scan-cone" position={conePos}>
-          <CylinderGraphics 
-            length={currentData[COL.ALT_R]} 
-            topRadius={2} 
-            bottomRadius={currentData[COL.ALT_R] * 0.2} 
-            material={Color.CYAN.withAlpha(0.2)} 
-          />
-        </Entity>
+        {showCone && (
+          <Entity key="scan-cone" position={conePos}>
+            <CylinderGraphics 
+              length={currentData[COL.ALT_R]} 
+              topRadius={2} 
+              bottomRadius={currentData[COL.ALT_R] * 0.2} 
+              material={Color.CYAN.withAlpha(0.2)} 
+            />
+          </Entity>
+        )}
 
         {/* UAV 地面投影线 - 虚线样式 */}
         <Entity key="ground-projection">

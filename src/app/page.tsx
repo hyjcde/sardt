@@ -54,6 +54,16 @@ export default function Home(props: any) {
   const [isMaximized, setIsMaximized] = useState(false);
   const [dataIndex, setDataIndex] = useState(0);
   
+  // 工具栏状态
+  const [showTrail, setShowTrail] = useState(true);        // 显示飞行轨迹
+  const [showCone, setShowCone] = useState(true);          // 显示扫描光锥
+  const [showLabels, setShowLabels] = useState(true);      // 显示标签
+  const [showSignalLink, setShowSignalLink] = useState(true); // 显示信号连接线
+  const [showWeatherOverlay, setShowWeatherOverlay] = useState(false); // 天气叠加层
+  const [isPaused, setIsPaused] = useState(false);         // 暂停数据更新
+  const [showStats, setShowStats] = useState(true);        // 显示统计面板
+  const [showConfig, setShowConfig] = useState(false);     // 显示配置面板
+  
   const COL = {
     EPOCH: 0, LAT_R: 1, LON_R: 2, ALT_R: 3,
     LAT_B: 4, LON_B: 5, ALT_B: 6, DIST: 7,
@@ -77,11 +87,12 @@ export default function Home(props: any) {
   const fullHistory = useMemo(() => realData.slice(0, dataIndex + 1), [dataIndex]);
 
   useEffect(() => {
+    if (isPaused) return;
     const interval = setInterval(() => {
       setDataIndex(prev => (prev + 1) % realData.length);
     }, 500); // 500ms 更新间隔，减少频闪
     return () => clearInterval(interval);
-  }, []);
+  }, [isPaused]);
 
   useEffect(() => {
     if (dataIndex % 10 === 0) {
@@ -100,7 +111,14 @@ export default function Home(props: any) {
 
   return (
     <main className="relative w-screen h-screen text-zinc-200 font-mono overflow-hidden">
-      <CesiumMap currentData={currentData} fullHistory={fullHistory} />
+      <CesiumMap 
+        currentData={currentData} 
+        fullHistory={fullHistory}
+        showTrail={showTrail}
+        showCone={showCone}
+        showLabels={showLabels}
+        showSignalLink={showSignalLink}
+      />
 
       {/* 背景装饰 */}
       <div className="absolute inset-0 pointer-events-none z-10">
@@ -109,6 +127,34 @@ export default function Home(props: any) {
         <div className="absolute top-1/2 left-4 w-1 h-32 bg-white/5 -translate-y-1/2" />
         <div className="absolute top-1/2 right-4 w-1 h-32 bg-white/5 -translate-y-1/2" />
       </div>
+
+      {/* 天气叠加层 */}
+      {showWeatherOverlay && (
+        <div className="absolute inset-0 pointer-events-none z-5">
+          <div className="absolute inset-0 bg-gradient-to-b from-blue-500/10 via-transparent to-cyan-500/10" />
+          <div className="absolute top-20 left-1/4 text-[10px] text-cyan-400/70 font-mono">
+            <div className="flex items-center gap-2 bg-black/40 backdrop-blur px-3 py-2 rounded-lg border border-cyan-500/20">
+              <Wind className="w-4 h-4" />
+              <div>
+                <div className="text-cyan-300">Wind: 12 kt NE</div>
+                <div className="text-zinc-400">Visibility: 8 km</div>
+                <div className="text-zinc-400">Temp: 24°C | Humidity: 65%</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 暂停状态指示器 */}
+      {isPaused && (
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-none">
+          <div className="bg-black/80 backdrop-blur-xl px-8 py-4 rounded-2xl border border-amber-500/30 flex items-center gap-4">
+            <div className="w-4 h-8 bg-amber-500 rounded-sm" />
+            <div className="w-4 h-8 bg-amber-500 rounded-sm" />
+            <span className="text-amber-400 font-black text-xl uppercase tracking-widest ml-2">Paused</span>
+          </div>
+        </div>
+      )}
 
       {/* 全屏放大弹窗 */}
       {isMaximized && (
@@ -393,38 +439,82 @@ export default function Home(props: any) {
             {/* 工具栏 */}
             <aside className="bg-zinc-900/60 backdrop-blur-xl border border-white/10 p-2 rounded-xl flex flex-wrap items-center justify-center gap-1 shadow-2xl">
               {[
-                { icon: Crosshair, label: 'Target', color: 'hover:text-red-400' },
-                { icon: Eye, label: 'View', color: 'hover:text-blue-400' },
-                { icon: Layers, label: 'Layers', color: 'hover:text-purple-400' },
-                { icon: Globe, label: 'Globe', color: 'hover:text-emerald-400' },
-                { icon: Wind, label: 'Weather', color: 'hover:text-cyan-400' },
-                { icon: MapIcon, label: 'Map', color: 'hover:text-amber-400' },
-                { icon: Satellite, label: 'Sat', color: 'hover:text-pink-400' },
-                { icon: Network, label: 'Net', color: 'hover:text-indigo-400' },
-                { icon: Settings, label: 'Config', color: 'hover:text-zinc-300' }
+                { icon: Crosshair, label: 'Track Target', color: 'text-red-400', active: showCone, onClick: () => setShowCone(!showCone) },
+                { icon: Eye, label: 'Show Labels', color: 'text-blue-400', active: showLabels, onClick: () => setShowLabels(!showLabels) },
+                { icon: Layers, label: 'Flight Trail', color: 'text-purple-400', active: showTrail, onClick: () => setShowTrail(!showTrail) },
+                { icon: Globe, label: 'Signal Link', color: 'text-emerald-400', active: showSignalLink, onClick: () => setShowSignalLink(!showSignalLink) },
+                { icon: Wind, label: 'Weather', color: 'text-cyan-400', active: showWeatherOverlay, onClick: () => setShowWeatherOverlay(!showWeatherOverlay) },
+                { icon: isPaused ? Radio : MapIcon, label: isPaused ? 'Resume' : 'Pause', color: 'text-amber-400', active: isPaused, onClick: () => setIsPaused(!isPaused) },
+                { icon: Satellite, label: 'Stats Panel', color: 'text-pink-400', active: showStats, onClick: () => setShowStats(!showStats) },
+                { icon: Network, label: 'Reset View', color: 'text-indigo-400', active: false, onClick: () => { setDataIndex(0); setLogs([]); } },
+                { icon: Settings, label: 'Config', color: 'text-zinc-300', active: showConfig, onClick: () => setShowConfig(!showConfig) }
               ].map((item, i) => (
-                <button key={i} className={`w-10 h-10 rounded-lg flex items-center justify-center hover:bg-white/10 transition-all group relative`} title={item.label}>
-                  <item.icon className={`w-4 h-4 text-zinc-400 group-hover:text-white ${item.color} transition-colors`} />
+                <button 
+                  key={i} 
+                  onClick={item.onClick}
+                  className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all group relative ${item.active ? 'bg-white/15 ring-1 ring-white/20' : 'hover:bg-white/10'}`} 
+                  title={item.label}
+                >
+                  <item.icon className={`w-4 h-4 transition-colors ${item.active ? item.color : 'text-zinc-500 group-hover:text-zinc-300'}`} />
+                  {item.active && <div className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />}
                 </button>
               ))}
             </aside>
 
+            {/* 配置面板 */}
+            {showConfig && (
+              <section className="bg-zinc-900/70 backdrop-blur-xl border border-amber-500/30 rounded-xl p-4 shadow-2xl">
+                <div className="flex items-center justify-between mb-3 pb-2 border-b border-white/10">
+                  <span className="text-[10px] font-black text-amber-400 uppercase">Display Config</span>
+                  <button onClick={() => setShowConfig(false)} className="text-zinc-500 hover:text-white">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="space-y-2 text-[10px]">
+                  {[
+                    { label: 'Flight Trail', checked: showTrail, onChange: () => setShowTrail(!showTrail) },
+                    { label: 'Scan Cone', checked: showCone, onChange: () => setShowCone(!showCone) },
+                    { label: 'Labels', checked: showLabels, onChange: () => setShowLabels(!showLabels) },
+                    { label: 'Signal Link', checked: showSignalLink, onChange: () => setShowSignalLink(!showSignalLink) },
+                    { label: 'Stats Panel', checked: showStats, onChange: () => setShowStats(!showStats) },
+                    { label: 'Weather Overlay', checked: showWeatherOverlay, onChange: () => setShowWeatherOverlay(!showWeatherOverlay) }
+                  ].map((item, i) => (
+                    <label key={i} className="flex items-center justify-between cursor-pointer group">
+                      <span className="text-zinc-400 group-hover:text-white transition-colors">{item.label}</span>
+                      <div 
+                        onClick={item.onChange}
+                        className={`w-8 h-4 rounded-full transition-all ${item.checked ? 'bg-emerald-500' : 'bg-zinc-700'} relative`}
+                      >
+                        <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${item.checked ? 'left-4' : 'left-0.5'}`} />
+                      </div>
+                    </label>
+                  ))}
+                </div>
+                <div className="mt-3 pt-2 border-t border-white/10 flex justify-between text-[9px] text-zinc-500">
+                  <span>Data Index: {dataIndex}/{realData.length}</span>
+                  <span className={isPaused ? 'text-amber-400' : 'text-emerald-400'}>{isPaused ? 'PAUSED' : 'LIVE'}</span>
+                </div>
+              </section>
+            )}
+
             {/* 连接状态快速统计 */}
-            <section className="bg-zinc-900/50 backdrop-blur-xl border border-white/10 rounded-xl p-3 shadow-2xl">
-              <div className="grid grid-cols-4 gap-2">
-                {[
-                  { label: 'Packets', value: Math.floor(dataIndex * 1.5), color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-                  { label: 'Errors', value: dataIndex % 10 === 0 ? 1 : 0, color: 'text-red-400', bg: 'bg-red-500/10' },
-                  { label: 'Latency', value: `${12 + (dataIndex % 5)}ms`, color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
-                  { label: 'Bitrate', value: `${(currentData[COL.MCS] * 1.2).toFixed(1)}`, color: 'text-purple-400', bg: 'bg-purple-500/10' }
-                ].map((stat, i) => (
-                  <div key={i} className={`${stat.bg} rounded-lg p-2 text-center border border-white/5`}>
-                    <p className="text-[7px] text-zinc-500 uppercase font-black">{stat.label}</p>
-                    <p className={`text-sm font-black ${stat.color}`}>{stat.value}</p>
-                  </div>
-                ))}
-              </div>
-            </section>
+            {showStats && (
+              <section className="bg-zinc-900/50 backdrop-blur-xl border border-white/10 rounded-xl p-3 shadow-2xl">
+                <div className="grid grid-cols-4 gap-2">
+                  {[
+                    { label: 'Packets', value: Math.floor(dataIndex * 1.5), color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+                    { label: 'Errors', value: dataIndex % 10 === 0 ? 1 : 0, color: 'text-red-400', bg: 'bg-red-500/10' },
+                    { label: 'Latency', value: `${12 + (dataIndex % 5)}ms`, color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
+                    { label: 'Bitrate', value: `${(currentData[COL.MCS] * 1.2).toFixed(1)}`, color: 'text-purple-400', bg: 'bg-purple-500/10' }
+                  ].map((stat, i) => (
+                    <div key={i} className={`${stat.bg} rounded-lg p-2 text-center border border-white/5`}>
+                      <p className="text-[7px] text-zinc-500 uppercase font-black">{stat.label}</p>
+                      <p className={`text-sm font-black ${stat.color}`}>{stat.value}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
 
             {/* 信号强度仪表盘 */}
             <section className="bg-zinc-900/50 backdrop-blur-xl border border-white/10 rounded-2xl p-4 shadow-2xl relative group hover:bg-zinc-900/70 transition-all">
