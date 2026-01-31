@@ -452,11 +452,10 @@ export default function Home(props: any) {
                 <button 
                   key={i} 
                   onClick={item.onClick}
-                  className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all group relative ${item.active ? 'bg-white/15 ring-1 ring-white/20' : 'hover:bg-white/10'}`} 
+                  className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all group ${item.active ? 'bg-white/15 ring-1 ring-white/20' : 'hover:bg-white/10'}`} 
                   title={item.label}
                 >
                   <item.icon className={`w-4 h-4 transition-colors ${item.active ? item.color : 'text-zinc-500 group-hover:text-zinc-300'}`} />
-                  {item.active && <div className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />}
                 </button>
               ))}
             </aside>
