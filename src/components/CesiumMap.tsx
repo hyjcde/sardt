@@ -7,7 +7,6 @@ import {
   Color,
   createWorldImageryAsync,
   createWorldTerrainAsync,
-  HeightReference,
   HorizontalOrigin,
   Ion,
   JulianDate,
@@ -15,9 +14,12 @@ import {
   PolylineGlowMaterialProperty,
   VerticalOrigin,
   PolylineDashMaterialProperty,
-  NearFarScalar
+  NearFarScalar,
+  SceneMode,
+  UrlTemplateImageryProvider,
+  EllipsoidTerrainProvider
 } from 'cesium';
-import React, { useEffect, useMemo, useState, memo, useRef, useImperativeHandle, forwardRef } from 'react';
+import React, { useEffect, useMemo, useState, memo } from 'react';
 import { BillboardGraphics, CylinderGraphics, EllipseGraphics, Entity, ImageryLayer, LabelGraphics, PointGraphics, PolylineGraphics, useCesium, Viewer } from 'resium';
 
 // UAV 图标 SVG - 无人机形状
@@ -57,10 +59,19 @@ const CONTEXT_OPTIONS = { webgl: { preserveDrawingBuffer: true } };
 // 用于存储 viewer 实例的全局引用
 let globalViewerRef: any = null;
 
-const SceneInitializer = ({ terrainProvider, center, flyToTarget }: { terrainProvider: any, center: { lon: number, lat: number }, flyToTarget?: { lon: number, lat: number, alt: number } | null }) => {
+const SceneInitializer = ({ 
+  terrainProvider, 
+  center, 
+  flyToTarget, 
+  mapMode 
+}: { 
+  terrainProvider: any; 
+  center: { lon: number; lat: number }; 
+  flyToTarget?: { lon: number; lat: number; alt: number } | null;
+  mapMode?: '2d' | '3d';
+}) => {
   const { viewer } = useCesium();
   
-  // 保存 viewer 引用
   useEffect(() => {
     if (viewer) {
       globalViewerRef = viewer;
@@ -72,28 +83,37 @@ const SceneInitializer = ({ terrainProvider, center, flyToTarget }: { terrainPro
       const now = new Date();
       viewer.clock.currentTime = JulianDate.fromDate(new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0));
       viewer.clock.shouldAnimate = true;
-      viewer.scene.globe.enableLighting = true;
-      viewer.scene.globe.depthTestAgainstTerrain = true;
+      viewer.scene.globe.enableLighting = mapMode === '3d';
+      viewer.scene.globe.depthTestAgainstTerrain = mapMode === '3d';
       viewer.scene.light.intensity = 3.5;
       
-      // 启用大气和雾效，防止背景全黑
       if (viewer.scene.skyAtmosphere) {
-        viewer.scene.skyAtmosphere.show = true;
+        viewer.scene.skyAtmosphere.show = mapMode === '3d';
       }
       if (viewer.scene.fog) {
-        viewer.scene.fog.enabled = true;
+        viewer.scene.fog.enabled = mapMode === '3d';
         viewer.scene.fog.density = 0.0002;
       }
 
       viewer.camera.flyTo({
         destination: Cartesian3.fromDegrees(center.lon, center.lat - 0.003, 500),
-        orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(-30), roll: 0 },
+        orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(mapMode === '2d' ? -90 : -30), roll: 0 },
         duration: 2,
       });
     }
   }, [viewer]);
   
-  // 响应 flyToTarget 变化，飞到目标位置
+  // 2D / 2.5D 模式与地形
+  useEffect(() => {
+    if (!viewer) return;
+    viewer.scene.mode = mapMode === '2d' ? SceneMode.SCENE2D : SceneMode.SCENE3D;
+  }, [viewer, mapMode]);
+  
+  useEffect(() => {
+    if (!viewer) return;
+    viewer.terrainProvider = mapMode === '3d' && terrainProvider ? terrainProvider : new EllipsoidTerrainProvider();
+  }, [viewer, terrainProvider, mapMode]);
+  
   useEffect(() => {
     if (viewer && flyToTarget) {
       viewer.camera.flyTo({
@@ -108,7 +128,6 @@ const SceneInitializer = ({ terrainProvider, center, flyToTarget }: { terrainPro
     }
   }, [viewer, flyToTarget]);
   
-  useEffect(() => { if (viewer && terrainProvider) viewer.terrainProvider = terrainProvider; }, [viewer, terrainProvider]);
   return null;
 };
 
@@ -120,6 +139,9 @@ interface CesiumMapProps {
   showLabels?: boolean;
   showSignalLink?: boolean;
   flyToTarget?: { lon: number, lat: number, alt: number } | null;
+  mapMode?: '2d' | '3d';
+  baseLayer?: 'satellite' | 'street' | 'topo';
+  showRoads?: boolean;
 }
 
 const CesiumMap = ({ 
@@ -129,7 +151,10 @@ const CesiumMap = ({
   showCone = true,
   showLabels = true,
   showSignalLink = true,
-  flyToTarget = null
+  flyToTarget = null,
+  mapMode = '3d',
+  baseLayer = 'satellite',
+  showRoads = true
 }: CesiumMapProps) => {
   const [mounted, setMounted] = useState(false);
   const [terrainProvider, setTerrainProvider] = useState<any>(undefined);
@@ -150,7 +175,19 @@ const CesiumMap = ({
     }
   }, []);
 
-  const fallbackImagery = useMemo(() => new OpenStreetMapImageryProvider({ url: 'https://a.tile.openstreetmap.org/' }), []);
+  const osmImagery = useMemo(() => new OpenStreetMapImageryProvider({ url: 'https://a.tile.openstreetmap.org/' }), []);
+  const topoImagery = useMemo(() => new UrlTemplateImageryProvider({
+    url: 'https://a.tile.opentopomap.org/{z}/{x}/{y}.png',
+    credit: 'Map data: © OpenStreetMap, SRTM | Map style: © OpenTopoMap'
+  }), []);
+  
+  const baseImagery = useMemo(() => {
+    if (baseLayer === 'street') return osmImagery;
+    if (baseLayer === 'topo') return topoImagery;
+    return satelliteImagery || osmImagery;
+  }, [baseLayer, satelliteImagery, osmImagery, topoImagery]);
+  
+  const showRoadsOverlay = showRoads && baseLayer === 'satellite';
 
   const linkColor = useMemo(() => {
     const snr = currentData[COL.SNR];
@@ -191,10 +228,11 @@ const CesiumMap = ({
         geocoder={false} homeButton={false} infoBox={false} selectionIndicator={false}
         navigationHelpButton={false} navigationInstructionsInitiallyVisible={false}
         sceneModePicker={false} projectionPicker={false}
-        scene3DOnly={true} contextOptions={CONTEXT_OPTIONS}
+        scene3DOnly={false} contextOptions={CONTEXT_OPTIONS}
       >
-        <SceneInitializer terrainProvider={terrainProvider} center={{ lon: currentData[COL.LON_R], lat: currentData[COL.LAT_R] }} flyToTarget={flyToTarget} />
-        <ImageryLayer imageryProvider={satelliteImagery || fallbackImagery} />
+        <SceneInitializer terrainProvider={terrainProvider} center={{ lon: currentData[COL.LON_R], lat: currentData[COL.LAT_R] }} flyToTarget={flyToTarget} mapMode={mapMode} />
+        <ImageryLayer imageryProvider={baseImagery} />
+        {showRoadsOverlay && <ImageryLayer imageryProvider={osmImagery} alpha={0.45} />}
 
         {/* UAV 飞行轨迹 */}
         {showTrail && (

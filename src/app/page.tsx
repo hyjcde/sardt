@@ -64,6 +64,10 @@ export default function Home(props: any) {
   const [showStats, setShowStats] = useState(true);        // 显示统计面板
   const [showConfig, setShowConfig] = useState(false);     // 显示配置面板
   const [flyToTarget, setFlyToTarget] = useState<{ lon: number, lat: number, alt: number } | null>(null); // 飞行目标
+  // 地图模式与图层
+  const [mapMode, setMapMode] = useState<'2d' | '3d'>('3d');           // 2D 平面 / 2.5D 地形
+  const [baseLayer, setBaseLayer] = useState<'satellite' | 'street' | 'topo'>('satellite'); // 底图
+  const [showRoads, setShowRoads] = useState(true);                     // 道路/标注叠加（仅部分底图有效）
   
   const COL = {
     EPOCH: 0, LAT_R: 1, LON_R: 2, ALT_R: 3,
@@ -128,6 +132,9 @@ export default function Home(props: any) {
         showLabels={showLabels}
         showSignalLink={showSignalLink}
         flyToTarget={flyToTarget}
+        mapMode={mapMode}
+        baseLayer={baseLayer}
+        showRoads={showRoads}
       />
 
       {/* 背景装饰 */}
@@ -470,6 +477,57 @@ export default function Home(props: any) {
               ))}
             </aside>
 
+            {/* 地图模式与图层 */}
+            <section className="bg-zinc-900/60 backdrop-blur-xl border border-white/10 rounded-xl p-3 shadow-2xl">
+              <div className="flex items-center gap-2 mb-2.5 pb-2 border-b border-white/10">
+                <MapIcon className="w-4 h-4 text-amber-400" />
+                <span className="text-[10px] font-black text-zinc-300 uppercase tracking-wider">Map & Layers</span>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <p className="text-[8px] text-zinc-500 uppercase mb-1.5 font-black">Mode</p>
+                  <div className="flex gap-1.5">
+                    <button
+                      onClick={() => setMapMode('2d')}
+                      className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${mapMode === '2d' ? 'bg-amber-500/30 text-amber-400 ring-1 ring-amber-500/50' : 'bg-white/5 text-zinc-500 hover:bg-white/10 hover:text-zinc-300'}`}
+                    >
+                      2D
+                    </button>
+                    <button
+                      onClick={() => setMapMode('3d')}
+                      className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${mapMode === '3d' ? 'bg-amber-500/30 text-amber-400 ring-1 ring-amber-500/50' : 'bg-white/5 text-zinc-500 hover:bg-white/10 hover:text-zinc-300'}`}
+                    >
+                      2.5D Terrain
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[8px] text-zinc-500 uppercase mb-1.5 font-black">Base Layer</p>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {(['satellite', 'street', 'topo'] as const).map((layer) => (
+                      <button
+                        key={layer}
+                        onClick={() => setBaseLayer(layer)}
+                        className={`py-2 rounded-lg text-[9px] font-black uppercase transition-all ${baseLayer === layer ? 'bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/40' : 'bg-white/5 text-zinc-500 hover:bg-white/10 hover:text-zinc-300'}`}
+                        title={layer === 'satellite' ? 'Satellite imagery' : layer === 'street' ? 'OpenStreetMap roads' : 'Topographic terrain'}
+                      >
+                        {layer === 'satellite' ? 'Sat' : layer === 'street' ? 'Street' : 'Topo'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-[8px] text-zinc-500 uppercase font-black">Roads & Labels</span>
+                  <button
+                    onClick={() => setShowRoads(!showRoads)}
+                    className={`w-9 h-5 rounded-full transition-all ${showRoads ? 'bg-emerald-500/50' : 'bg-zinc-700'}`}
+                  >
+                    <div className={`w-4 h-4 rounded-full bg-white shadow transition-transform ${showRoads ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                  </button>
+                </div>
+              </div>
+            </section>
+
             {/* 配置面板 */}
             {showConfig && (
               <section className="bg-zinc-900/70 backdrop-blur-xl border border-amber-500/30 rounded-xl p-4 shadow-2xl">
@@ -486,7 +544,8 @@ export default function Home(props: any) {
                     { label: 'Labels', checked: showLabels, onChange: () => setShowLabels(!showLabels) },
                     { label: 'Signal Link', checked: showSignalLink, onChange: () => setShowSignalLink(!showSignalLink) },
                     { label: 'Stats Panel', checked: showStats, onChange: () => setShowStats(!showStats) },
-                    { label: 'Weather Overlay', checked: showWeatherOverlay, onChange: () => setShowWeatherOverlay(!showWeatherOverlay) }
+                    { label: 'Weather Overlay', checked: showWeatherOverlay, onChange: () => setShowWeatherOverlay(!showWeatherOverlay) },
+                    { label: 'Roads & Labels', checked: showRoads, onChange: () => setShowRoads(!showRoads) }
                   ].map((item, i) => (
                     <label key={i} className="flex items-center justify-between cursor-pointer group">
                       <span className="text-zinc-400 group-hover:text-white transition-colors">{item.label}</span>
