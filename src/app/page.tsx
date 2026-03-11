@@ -4,15 +4,19 @@ import {
   Activity,
   Battery,
   BrainCircuit,
+  Clock,
   Cpu,
   Crosshair,
   Eye,
   Globe,
   Layers,
   Map as MapIcon, Maximize2,
+  Mountain,
   Navigation,
   Network,
+  Plane,
   Radio,
+  Ruler,
   Satellite,
   Settings,
   Shield,
@@ -77,6 +81,7 @@ export default function Home(props: any) {
   };
 
   const currentData = useMemo(() => realData[dataIndex] || realData[0], [dataIndex]);
+  const prevData = useMemo(() => dataIndex > 0 ? realData[dataIndex - 1] : undefined, [dataIndex]);
   const mapSourceLabel = useMemo(() => {
     if (baseLayer === 'satellite') return 'LandsD Imagery + HK Labels';
     if (baseLayer === 'street') return 'LandsD Basemap Service';
@@ -108,6 +113,30 @@ export default function Home(props: any) {
   }, [dataIndex]);
 
   const fullHistory = useMemo(() => realData.slice(0, dataIndex + 1), [dataIndex]);
+
+  // 飞行统计
+  const flightStats = useMemo(() => {
+    const elapsed = currentData[COL.EPOCH];
+    const minutes = Math.floor(elapsed / 60);
+    const seconds = Math.floor(elapsed % 60);
+    const missionTime = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+
+    let totalDist = 0;
+    for (let i = 1; i <= dataIndex && i < realData.length; i++) {
+      const p = realData[i - 1];
+      const c = realData[i];
+      const dLat = (c[COL.LAT_R] - p[COL.LAT_R]) * 111320;
+      const dLon = (c[COL.LON_R] - p[COL.LON_R]) * 111320 * Math.cos(c[COL.LAT_R] * Math.PI / 180);
+      const dAlt = c[COL.ALT_R] - p[COL.ALT_R];
+      totalDist += Math.sqrt(dLat * dLat + dLon * dLon + dAlt * dAlt);
+    }
+
+    const altitudes = fullHistory.map((d: any) => d[COL.ALT_R]);
+    const maxAlt = altitudes.length > 0 ? Math.max(...altitudes) : 0;
+    const avgSpeed = elapsed > 0 ? totalDist / elapsed : 0;
+
+    return { missionTime, totalDist, maxAlt, avgSpeed };
+  }, [dataIndex, currentData, fullHistory]);
 
   useEffect(() => {
     if (isPaused) return;
@@ -152,6 +181,7 @@ export default function Home(props: any) {
     <main className="relative w-screen h-screen text-zinc-200 font-mono overflow-hidden">
       <CesiumMap 
         currentData={currentData} 
+        prevData={prevData}
         fullHistory={fullHistory}
         showTrail={showTrail}
         showCone={showCone}
@@ -273,16 +303,27 @@ export default function Home(props: any) {
             </div>
           </div>
 
-          <div className="bg-zinc-900/60 backdrop-blur-xl border border-white/10 px-5 py-3 rounded-xl flex items-center gap-5 shadow-2xl relative">
-            <div className="text-right">
-              <p className="text-[9px] text-zinc-500 uppercase font-black tracking-widest">Signal Integrity</p>
-              <p className="text-base font-black text-white tracking-widest leading-none mt-1">{currentData[COL.SIG]}%</p>
+          <div className="flex gap-2">
+            {/* 任务计时器 */}
+            <div className="bg-zinc-900/60 backdrop-blur-xl border border-white/10 px-4 py-3 rounded-xl flex items-center gap-3 shadow-2xl">
+              <Clock className="w-4 h-4 text-cyan-400" />
+              <div>
+                <p className="text-[8px] text-zinc-500 uppercase font-black tracking-widest">Mission Time</p>
+                <p className="text-lg font-black text-white tracking-[0.2em] leading-none mt-0.5 font-mono">{flightStats.missionTime}</p>
+              </div>
             </div>
-            <div className="w-40 h-2.5 bg-white/5 rounded-full overflow-hidden relative border border-white/10 p-0.5">
-              <div 
-                className="h-full rounded-full bg-linear-to-r from-red-500 via-amber-400 to-emerald-500 transition-all duration-500 shadow-[0_0_15px_rgba(16,185,129,0.4)]" 
-                style={{ width: `${currentData[COL.SIG]}%` }} 
-              />
+
+            <div className="bg-zinc-900/60 backdrop-blur-xl border border-white/10 px-4 py-3 rounded-xl flex items-center gap-4 shadow-2xl relative">
+              <div className="text-right">
+                <p className="text-[8px] text-zinc-500 uppercase font-black tracking-widest">Signal</p>
+                <p className="text-base font-black text-white tracking-widest leading-none mt-0.5">{currentData[COL.SIG]}%</p>
+              </div>
+              <div className="w-32 h-2.5 bg-white/5 rounded-full overflow-hidden relative border border-white/10 p-0.5">
+                <div 
+                  className="h-full rounded-full bg-linear-to-r from-red-500 via-amber-400 to-emerald-500 transition-all duration-500 shadow-[0_0_15px_rgba(16,185,129,0.4)]" 
+                  style={{ width: `${currentData[COL.SIG]}%` }} 
+                />
+              </div>
             </div>
           </div>
         </header>
@@ -447,16 +488,66 @@ export default function Home(props: any) {
               </div>
             </section>
 
-            {/* 环境与位置 */}
+            {/* 飞行统计 */}
             <section className="bg-zinc-900/50 backdrop-blur-xl border border-white/10 rounded-2xl p-4 shadow-2xl relative group hover:bg-zinc-900/70 transition-all">
               <CornerDecor className="top-0 right-0 border-t border-r" />
+              <div className="flex items-center gap-2 mb-3 pb-2.5 border-b border-white/10 text-purple-400 font-black uppercase text-[10px] tracking-wider">
+                <Plane className="w-4 h-4" /> Flight Statistics
+              </div>
+              <div className="grid grid-cols-4 gap-2 mb-3">
+                <div className="bg-zinc-950/40 p-2.5 rounded-xl border border-white/5 text-center">
+                  <Ruler className="w-3 h-3 text-purple-400 mx-auto mb-1" />
+                  <p className="text-[7px] text-zinc-500 uppercase font-black">Distance</p>
+                  <p className="text-sm font-black text-white font-mono">{flightStats.totalDist < 1000 ? `${flightStats.totalDist.toFixed(0)}m` : `${(flightStats.totalDist / 1000).toFixed(2)}km`}</p>
+                </div>
+                <div className="bg-zinc-950/40 p-2.5 rounded-xl border border-white/5 text-center">
+                  <Mountain className="w-3 h-3 text-cyan-400 mx-auto mb-1" />
+                  <p className="text-[7px] text-zinc-500 uppercase font-black">Max Alt</p>
+                  <p className="text-sm font-black text-white font-mono">{flightStats.maxAlt.toFixed(0)}m</p>
+                </div>
+                <div className="bg-zinc-950/40 p-2.5 rounded-xl border border-white/5 text-center">
+                  <Zap className="w-3 h-3 text-amber-400 mx-auto mb-1" />
+                  <p className="text-[7px] text-zinc-500 uppercase font-black">Avg Spd</p>
+                  <p className="text-sm font-black text-white font-mono">{flightStats.avgSpeed.toFixed(1)}<span className="text-[7px] text-zinc-500">m/s</span></p>
+                </div>
+                <div className="bg-zinc-950/40 p-2.5 rounded-xl border border-white/5 text-center">
+                  <Clock className="w-3 h-3 text-emerald-400 mx-auto mb-1" />
+                  <p className="text-[7px] text-zinc-500 uppercase font-black">Epoch</p>
+                  <p className="text-sm font-black text-white font-mono">{dataIndex + 1}<span className="text-[7px] text-zinc-500">/{realData.length}</span></p>
+                </div>
+              </div>
+
+              {/* 高度剖面迷你图 */}
+              <div className="bg-black/30 rounded-xl p-2 border border-white/5">
+                <p className="text-[7px] text-zinc-500 uppercase font-black tracking-widest mb-1 flex items-center gap-1.5">
+                  <Mountain className="w-3 h-3 text-cyan-500" /> Altitude Profile
+                </p>
+                <div className="h-[50px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={history} margin={{ top: 2, right: 2, left: -15, bottom: 2 }}>
+                      <defs>
+                        <linearGradient id="altGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.4}/>
+                          <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.02}/>
+                        </linearGradient>
+                      </defs>
+                      <YAxis domain={['auto', 'auto']} tick={{ fill: '#666', fontSize: 7 }} tickLine={false} axisLine={false} width={25} tickCount={3} />
+                      <Area type="monotone" dataKey="dist" stroke="#06b6d4" strokeWidth={1.5} fill="url(#altGrad)" isAnimationActive={false} name="Distance" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </section>
+
+            {/* 环境与位置 */}
+            <section className="bg-zinc-900/50 backdrop-blur-xl border border-white/10 rounded-2xl p-4 shadow-2xl relative group hover:bg-zinc-900/70 transition-all">
               <CornerDecor className="bottom-0 left-0 border-b border-l" />
-              <div className="flex items-center gap-2 mb-4 pb-2.5 border-b border-white/10 text-cyan-400 font-black uppercase text-[10px] tracking-wider">
+              <div className="flex items-center gap-2 mb-3 pb-2.5 border-b border-white/10 text-cyan-400 font-black uppercase text-[10px] tracking-wider">
                 <Compass className="w-4 h-4" /> Spatial Telemetry
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-zinc-950/40 p-3 rounded-xl border border-white/5 hover:border-cyan-500/30 transition-all">
-                  <p className="text-[8px] text-zinc-500 uppercase mb-2 font-black tracking-tighter">UAV Receiver</p>
+                  <p className="text-[8px] text-zinc-500 uppercase mb-2 font-black tracking-tighter flex items-center gap-1.5"><Plane className="w-3 h-3 text-cyan-500" />UAV Receiver</p>
                   <div className="space-y-1.5 text-[9px] font-mono">
                     <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-zinc-500">LAT</span><span className="text-white">{currentData[COL.LAT_R].toFixed(6)}</span></div>
                     <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-zinc-500">LON</span><span className="text-white">{currentData[COL.LON_R].toFixed(6)}</span></div>
@@ -464,13 +555,17 @@ export default function Home(props: any) {
                   </div>
                 </div>
                 <div className="bg-zinc-950/40 p-3 rounded-xl border border-white/5 hover:border-red-500/30 transition-all">
-                  <p className="text-[8px] text-zinc-500 uppercase mb-2 font-black tracking-tighter">Base Station</p>
+                  <p className="text-[8px] text-zinc-500 uppercase mb-2 font-black tracking-tighter flex items-center gap-1.5"><Radio className="w-3 h-3 text-red-500" />Base Station</p>
                   <div className="space-y-1.5 text-[9px] font-mono">
                     <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-zinc-500">LAT</span><span className="text-white">{currentData[COL.LAT_B].toFixed(6)}</span></div>
                     <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-zinc-500">LON</span><span className="text-white">{currentData[COL.LON_B].toFixed(6)}</span></div>
                     <div className="flex justify-between"><span className="text-zinc-500">ALT</span><span className="text-red-400 font-black">{currentData[COL.ALT_B].toFixed(1)}m</span></div>
                   </div>
                 </div>
+              </div>
+              <div className="mt-3 pt-2 border-t border-white/5 flex items-center justify-between text-[8px]">
+                <span className="text-zinc-500 uppercase font-black">Slant Range</span>
+                <span className="text-white font-black font-mono">{currentData[COL.DIST].toFixed(2)} m</span>
               </div>
             </section>
           </aside>
@@ -822,20 +917,20 @@ export default function Home(props: any) {
         </div>
 
         {/* 底部任务日志 */}
-        <footer className="flex gap-4 pointer-events-auto shrink-0 h-[110px]">
+        <footer className="flex gap-3 pointer-events-auto shrink-0 h-[110px]">
           <div className="flex-1 bg-zinc-900/60 backdrop-blur-xl border border-white/10 rounded-2xl p-4 flex flex-col overflow-hidden relative shadow-2xl group hover:bg-zinc-900/80 transition-all">
             <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-emerald-500 to-emerald-500/10" />
-            <div className="flex items-center justify-between mb-2.5 pb-2 border-b border-white/10 font-black text-emerald-400 uppercase text-[10px] tracking-widest">
-              <div className="flex items-center gap-2.5"><Terminal className="w-4 h-4" /> Mission Control Log</div>
-              <div className="flex items-center gap-4 text-[9px] text-zinc-500 font-bold uppercase">
-                <span>Uplink: 99.8%</span>
+            <div className="flex items-center justify-between mb-2 pb-2 border-b border-white/10 font-black text-emerald-400 uppercase text-[10px] tracking-widest">
+              <div className="flex items-center gap-2.5"><Terminal className="w-4 h-4" /> Mission Log</div>
+              <div className="flex items-center gap-3 text-[8px] text-zinc-500 font-bold uppercase">
+                <span>T+{flightStats.missionTime}</span>
                 <span className="w-px h-3 bg-white/10" />
-                <span>Latency: 12ms</span>
+                <span className={isPaused ? 'text-amber-400' : 'text-emerald-400'}>{isPaused ? 'HOLD' : 'LIVE'}</span>
               </div>
             </div>
-            <div className="flex-1 overflow-y-auto font-mono text-[10px] leading-relaxed scrollbar-hide space-y-1.5 text-zinc-300 uppercase">
+            <div className="flex-1 overflow-y-auto font-mono text-[10px] leading-relaxed scrollbar-hide space-y-1 text-zinc-300 uppercase">
               {logs.map((log, i) => (
-                <div key={i} className={`flex gap-3 items-start transition-all duration-500 ${i === 0 ? "text-emerald-400 bg-emerald-500/10 px-2 py-1.5 rounded-lg border-l-2 border-emerald-500" : "opacity-40 hover:opacity-100"}`}>
+                <div key={i} className={`flex gap-3 items-start transition-all duration-500 ${i === 0 ? "text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-lg border-l-2 border-emerald-500" : "opacity-40 hover:opacity-100"}`}>
                   <span className="text-zinc-600 font-black w-10">[{1024 + i}]</span>
                   <span className="flex-1 tracking-tight">{log}</span>
                 </div>
@@ -843,11 +938,32 @@ export default function Home(props: any) {
             </div>
           </div>
 
-          <button className="w-64 bg-gradient-to-br from-emerald-600/40 to-emerald-900/20 hover:from-emerald-500/50 hover:to-emerald-800/30 backdrop-blur-xl border border-emerald-500/40 rounded-2xl flex flex-col items-center justify-center gap-2.5 transition-all active:scale-95 shadow-2xl group relative overflow-hidden">
-            <div className="w-12 h-12 rounded-full border-2 border-emerald-500/50 flex items-center justify-center bg-emerald-500/10 group-hover:bg-emerald-500/20 transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)] relative z-10">
-              <Navigation className="w-6 h-6 rotate-45 text-emerald-400" />
+          {/* 任务状态摘要 */}
+          <div className="w-52 bg-zinc-900/60 backdrop-blur-xl border border-white/10 rounded-2xl p-3 flex flex-col justify-between shadow-2xl">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="text-center">
+                <p className="text-[7px] text-zinc-500 uppercase font-black">Covered</p>
+                <p className="text-xs font-black text-purple-400 font-mono">{flightStats.totalDist < 1000 ? `${flightStats.totalDist.toFixed(0)}m` : `${(flightStats.totalDist / 1000).toFixed(2)}km`}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-[7px] text-zinc-500 uppercase font-black">Speed</p>
+                <p className="text-xs font-black text-cyan-400 font-mono">{flightStats.avgSpeed.toFixed(1)} m/s</p>
+              </div>
             </div>
-            <span className="tracking-[0.3em] text-emerald-400 font-black text-[10px] uppercase relative z-10">Initiate Rescue</span>
+            <div className="flex items-center justify-between text-[8px] pt-2 border-t border-white/5 mt-2">
+              <span className="text-zinc-500 font-black uppercase">Battery</span>
+              <div className="flex items-center gap-1.5">
+                <Battery className="w-3 h-3 text-emerald-400" />
+                <span className="text-emerald-400 font-black">{Math.max(20, 98 - Math.floor(dataIndex * 0.15))}%</span>
+              </div>
+            </div>
+          </div>
+
+          <button className="w-48 bg-gradient-to-br from-emerald-600/40 to-emerald-900/20 hover:from-emerald-500/50 hover:to-emerald-800/30 backdrop-blur-xl border border-emerald-500/40 rounded-2xl flex flex-col items-center justify-center gap-2 transition-all active:scale-95 shadow-2xl group relative overflow-hidden">
+            <div className="w-11 h-11 rounded-full border-2 border-emerald-500/50 flex items-center justify-center bg-emerald-500/10 group-hover:bg-emerald-500/20 transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)] relative z-10">
+              <Navigation className="w-5 h-5 rotate-45 text-emerald-400" />
+            </div>
+            <span className="tracking-[0.2em] text-emerald-400 font-black text-[9px] uppercase relative z-10">Initiate Rescue</span>
           </button>
         </footer>
       </div>

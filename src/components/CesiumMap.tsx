@@ -8,11 +8,13 @@ import {
   ArcGisMapServerImageryProvider,
   Cesium3DTileset,
   createWorldTerrainAsync,
+  HeadingPitchRoll,
   HorizontalOrigin,
   Ion,
   JulianDate,
   OpenStreetMapImageryProvider,
   PolylineGlowMaterialProperty,
+  Transforms,
   VerticalOrigin,
   PolylineDashMaterialProperty,
   NearFarScalar,
@@ -21,21 +23,9 @@ import {
   EllipsoidTerrainProvider
 } from 'cesium';
 import React, { useEffect, useMemo, useRef, useState, memo } from 'react';
-import { BillboardGraphics, CylinderGraphics, EllipseGraphics, Entity, ImageryLayer, LabelGraphics, PointGraphics, PolylineGraphics, useCesium, Viewer } from 'resium';
+import { BillboardGraphics, CylinderGraphics, Entity, ImageryLayer, LabelGraphics, ModelGraphics, PolylineGraphics, useCesium, Viewer } from 'resium';
 
-// UAV 图标 SVG - 无人机形状
-const UAV_ICON = `data:image/svg+xml,${encodeURIComponent(`
-<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
-  <defs>
-    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
-      <feGaussianBlur stdDeviation="2" result="blur"/>
-      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>
-  </defs>
-  <polygon points="24,4 28,20 44,24 28,28 24,44 20,28 4,24 20,20" fill="#00ffff" stroke="#ffffff" stroke-width="2" filter="url(#glow)"/>
-  <circle cx="24" cy="24" r="4" fill="#ffffff"/>
-</svg>
-`)}`;
+const DRONE_MODEL_URI = '/models/CesiumDrone.glb';
 
 // 基站图标 SVG - 信号塔形状
 const BASE_ICON = `data:image/svg+xml,${encodeURIComponent(`
@@ -196,6 +186,7 @@ const SceneInitializer = ({
 
 interface CesiumMapProps {
   currentData: any[];
+  prevData?: any[];
   fullHistory: any[][];
   showTrail?: boolean;
   showCone?: boolean;
@@ -210,6 +201,7 @@ interface CesiumMapProps {
 
 const CesiumMap = ({ 
   currentData, 
+  prevData,
   fullHistory,
   showTrail = true,
   showCone = true,
@@ -291,6 +283,21 @@ const CesiumMap = ({
     Cartesian3.fromDegrees(currentData[COL.LON_R], currentData[COL.LAT_R], currentData[COL.ALT_R] / 2),
     [currentData[COL.LON_R], currentData[COL.LAT_R], currentData[COL.ALT_R]]
   );
+
+  // 根据前后帧位置计算无人机航向
+  const uavOrientation = useMemo(() => {
+    let heading = 0;
+    if (prevData) {
+      const dLon = currentData[COL.LON_R] - prevData[COL.LON_R];
+      const dLat = currentData[COL.LAT_R] - prevData[COL.LAT_R];
+      if (Math.abs(dLon) > 1e-9 || Math.abs(dLat) > 1e-9) {
+        const cosLat = Math.cos(currentData[COL.LAT_R] * Math.PI / 180);
+        heading = Math.atan2(dLon * cosLat, dLat);
+      }
+    }
+    const hpr = new HeadingPitchRoll(heading, 0, 0);
+    return Transforms.headingPitchRollQuaternion(uavPos, hpr);
+  }, [uavPos, prevData, currentData]);
   
   const trailPositions = useMemo(() => 
     fullHistory.map(d => Cartesian3.fromDegrees(d[COL.LON_R], d[COL.LAT_R], d[COL.ALT_R])),
@@ -360,21 +367,24 @@ const CesiumMap = ({
           )}
         </Entity>
 
-        {/* UAV 标记 - 使用 Billboard 图标 */}
-        <Entity key="uav-marker" position={uavPos}>
-          <BillboardGraphics 
-            image={UAV_ICON}
-            width={52}
-            height={52}
-            verticalOrigin={VerticalOrigin.CENTER}
-            disableDepthTestDistance={Number.POSITIVE_INFINITY}
-            scaleByDistance={new NearFarScalar(100, 1.3, 3000, 0.7)}
+        {/* UAV 标记 - 3D 无人机模型 */}
+        <Entity key="uav-marker" position={uavPos} orientation={uavOrientation as any}>
+          <ModelGraphics 
+            uri={DRONE_MODEL_URI}
+            scale={2.5}
+            minimumPixelSize={64}
+            maximumScale={200}
+            color={Color.fromCssColorString('#88eeff')}
+            colorBlendMode={1}
+            colorBlendAmount={0.3}
+            silhouetteColor={Color.CYAN}
+            silhouetteSize={1.5}
           />
           {showLabels && (
             <LabelGraphics 
               text={`UAV-01 | ${currentData[COL.ALT_R].toFixed(0)}m AGL`} 
               font="bold 16px sans-serif" fillColor={Color.CYAN} outlineColor={Color.BLACK} outlineWidth={4}
-              verticalOrigin={VerticalOrigin.BOTTOM} pixelOffset={new Cartesian2(0, -32)} 
+              verticalOrigin={VerticalOrigin.BOTTOM} pixelOffset={new Cartesian2(0, -42)} 
               horizontalOrigin={HorizontalOrigin.CENTER}
               disableDepthTestDistance={Number.POSITIVE_INFINITY}
               scaleByDistance={new NearFarScalar(100, 1.2, 3000, 0.8)}
