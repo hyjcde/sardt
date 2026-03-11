@@ -374,9 +374,6 @@ const CesiumMap = ({
             scale={2.5}
             minimumPixelSize={64}
             maximumScale={200}
-            color={Color.fromCssColorString('#88eeff')}
-            colorBlendMode={1}
-            colorBlendAmount={0.3}
             silhouetteColor={Color.CYAN}
             silhouetteSize={1.5}
           />
