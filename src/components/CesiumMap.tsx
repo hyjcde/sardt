@@ -6,6 +6,7 @@ import {
   Math as CesiumMath,
   Color,
   ArcGisMapServerImageryProvider,
+  Cesium3DTileset,
   createWorldTerrainAsync,
   HorizontalOrigin,
   Ion,
@@ -19,7 +20,7 @@ import {
   UrlTemplateImageryProvider,
   EllipsoidTerrainProvider
 } from 'cesium';
-import React, { useEffect, useMemo, useState, memo } from 'react';
+import React, { useEffect, useMemo, useRef, useState, memo } from 'react';
 import { BillboardGraphics, CylinderGraphics, EllipseGraphics, Entity, ImageryLayer, LabelGraphics, PointGraphics, PolylineGraphics, useCesium, Viewer } from 'resium';
 
 // UAV 图标 SVG - 无人机形状
@@ -55,9 +56,69 @@ const BASE_ICON = `data:image/svg+xml,${encodeURIComponent(`
 Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJjMzQyNjJlOS0xMGZlLTQ2NzctYjdhYi0zZjM4NDkyMWM0ZjEiLCJpZCI6MTIwNTA5LCJpYXQiOjE2NzI5OTE1ODd9.xcQ46k8Ng1tBILRSptcG2h4l4vxHU_vdZePrfsOBqJA'; 
 
 const CONTEXT_OPTIONS = { webgl: { preserveDrawingBuffer: true } };
+const HK_3D_TILESET_URL = 'https://data.map.gov.hk/api/3d-data/3dtiles/f2/tileset.json?key=3967f8f365694e0798af3e7678509421';
 
 // 用于存储 viewer 实例的全局引用
 let globalViewerRef: any = null;
+
+const HongKongBuildingsLayer = ({ enabled }: { enabled: boolean }) => {
+  const { viewer } = useCesium();
+  const tilesetRef = useRef<Cesium3DTileset | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const setupBuildings = async () => {
+      if (!viewer) return;
+
+      if (!enabled) {
+        if (tilesetRef.current) {
+          tilesetRef.current.show = false;
+          viewer.scene.requestRender();
+        }
+        return;
+      }
+
+      if (!tilesetRef.current) {
+        try {
+          const tileset = await Cesium3DTileset.fromUrl(HK_3D_TILESET_URL, {
+            maximumScreenSpaceError: 1,
+          });
+
+          if (cancelled || !viewer) return;
+
+          tileset.show = true;
+          tileset.maximumScreenSpaceError = 1;
+          viewer.scene.primitives.add(tileset);
+          tilesetRef.current = tileset;
+          viewer.scene.requestRender();
+        } catch (err) {
+          console.warn('Hong Kong 3D tiles failed to load:', err);
+        }
+      } else {
+        tilesetRef.current.show = true;
+        viewer.scene.requestRender();
+      }
+    };
+
+    setupBuildings();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [viewer, enabled]);
+
+  useEffect(() => {
+    return () => {
+      if (viewer && tilesetRef.current) {
+        viewer.scene.primitives.remove(tilesetRef.current);
+        tilesetRef.current = null;
+      }
+    };
+  }, [viewer]);
+
+  return null;
+};
 
 const SceneInitializer = ({ 
   terrainProvider, 
@@ -83,8 +144,10 @@ const SceneInitializer = ({
       const now = new Date();
       viewer.clock.currentTime = JulianDate.fromDate(new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0));
       viewer.clock.shouldAnimate = true;
+      viewer.resolutionScale = Math.min(window.devicePixelRatio || 1, 2);
       viewer.scene.globe.enableLighting = mapMode === '3d';
       viewer.scene.globe.depthTestAgainstTerrain = mapMode === '3d';
+      viewer.scene.globe.maximumScreenSpaceError = 1;
       viewer.scene.light.intensity = 3.5;
       
       if (viewer.scene.skyAtmosphere) {
@@ -142,6 +205,7 @@ interface CesiumMapProps {
   mapMode?: '2d' | '3d';
   baseLayer?: 'satellite' | 'street' | 'topo';
   showRoads?: boolean;
+  showBuildings?: boolean;
 }
 
 const CesiumMap = ({ 
@@ -154,7 +218,8 @@ const CesiumMap = ({
   flyToTarget = null,
   mapMode = '3d',
   baseLayer = 'satellite',
-  showRoads = true
+  showRoads = true,
+  showBuildings = true
 }: CesiumMapProps) => {
   const [mounted, setMounted] = useState(false);
   const [terrainProvider, setTerrainProvider] = useState<any>(undefined);
@@ -247,6 +312,7 @@ const CesiumMap = ({
         <SceneInitializer terrainProvider={terrainProvider} center={{ lon: currentData[COL.LON_R], lat: currentData[COL.LAT_R] }} flyToTarget={flyToTarget} mapMode={mapMode} />
         <ImageryLayer imageryProvider={baseImagery} />
         {roadsOverlayImagery && <ImageryLayer imageryProvider={roadsOverlayImagery} alpha={0.75} brightness={1.1} />}
+        <HongKongBuildingsLayer enabled={mapMode === '3d' && showBuildings} />
 
         {/* UAV 飞行轨迹 */}
         {showTrail && (

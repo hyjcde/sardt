@@ -68,6 +68,7 @@ export default function Home(props: any) {
   const [mapMode, setMapMode] = useState<'2d' | '3d'>('3d');           // 2D 平面 / 2.5D 地形
   const [baseLayer, setBaseLayer] = useState<'satellite' | 'street' | 'topo'>('satellite'); // 底图
   const [showRoads, setShowRoads] = useState(true);                     // 道路/标注叠加（仅部分底图有效）
+  const [showBuildings, setShowBuildings] = useState(true);             // 香港官方 3D 楼宇
   
   const COL = {
     EPOCH: 0, LAT_R: 1, LON_R: 2, ALT_R: 3,
@@ -135,6 +136,7 @@ export default function Home(props: any) {
         mapMode={mapMode}
         baseLayer={baseLayer}
         showRoads={showRoads}
+        showBuildings={showBuildings}
       />
 
       {/* 背景装饰 */}
@@ -525,6 +527,18 @@ export default function Home(props: any) {
                     <div className={`w-4 h-4 rounded-full bg-white shadow transition-transform ${showRoads ? 'translate-x-5' : 'translate-x-0.5'}`} />
                   </button>
                 </div>
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-[8px] text-zinc-500 uppercase font-black">3D Buildings</span>
+                  <button
+                    onClick={() => setShowBuildings(!showBuildings)}
+                    className={`w-9 h-5 rounded-full transition-all ${showBuildings ? 'bg-cyan-500/50' : 'bg-zinc-700'}`}
+                  >
+                    <div className={`w-4 h-4 rounded-full bg-white shadow transition-transform ${showBuildings ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                  </button>
+                </div>
+                <div className="rounded-lg bg-cyan-500/5 border border-cyan-500/10 px-3 py-2 text-[9px] text-zinc-400 leading-relaxed">
+                  `HK Sat` + `Roads & Labels` + `3D Buildings` in `2.5D Terrain` gives the highest-precision Hong Kong rescue view.
+                </div>
               </div>
             </section>
 
@@ -545,7 +559,8 @@ export default function Home(props: any) {
                     { label: 'Signal Link', checked: showSignalLink, onChange: () => setShowSignalLink(!showSignalLink) },
                     { label: 'Stats Panel', checked: showStats, onChange: () => setShowStats(!showStats) },
                     { label: 'Weather Overlay', checked: showWeatherOverlay, onChange: () => setShowWeatherOverlay(!showWeatherOverlay) },
-                    { label: 'Roads & Labels', checked: showRoads, onChange: () => setShowRoads(!showRoads) }
+                    { label: 'Roads & Labels', checked: showRoads, onChange: () => setShowRoads(!showRoads) },
+                    { label: '3D Buildings', checked: showBuildings, onChange: () => setShowBuildings(!showBuildings) }
                   ].map((item, i) => (
                     <label key={i} className="flex items-center justify-between cursor-pointer group">
                       <span className="text-zinc-400 group-hover:text-white transition-colors">{item.label}</span>
