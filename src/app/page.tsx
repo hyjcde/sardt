@@ -509,9 +509,9 @@ export default function Home(props: any) {
                         key={layer}
                         onClick={() => setBaseLayer(layer)}
                         className={`py-2 rounded-lg text-[9px] font-black uppercase transition-all ${baseLayer === layer ? 'bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/40' : 'bg-white/5 text-zinc-500 hover:bg-white/10 hover:text-zinc-300'}`}
-                        title={layer === 'satellite' ? 'Satellite imagery' : layer === 'street' ? 'OpenStreetMap roads' : 'Topographic terrain'}
+                        title={layer === 'satellite' ? 'Hong Kong official imagery' : layer === 'street' ? 'Hong Kong official navigation basemap' : 'Terrain analysis map'}
                       >
-                        {layer === 'satellite' ? 'Sat' : layer === 'street' ? 'Street' : 'Topo'}
+                        {layer === 'satellite' ? 'HK Sat' : layer === 'street' ? 'HK Nav' : 'Terrain'}
                       </button>
                     ))}
                   </div>

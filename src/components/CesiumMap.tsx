@@ -5,7 +5,7 @@ import {
   Cartesian2,
   Math as CesiumMath,
   Color,
-  createWorldImageryAsync,
+  ArcGisMapServerImageryProvider,
   createWorldTerrainAsync,
   HorizontalOrigin,
   Ion,
@@ -158,7 +158,7 @@ const CesiumMap = ({
 }: CesiumMapProps) => {
   const [mounted, setMounted] = useState(false);
   const [terrainProvider, setTerrainProvider] = useState<any>(undefined);
-  const [satelliteImagery, setSatelliteImagery] = useState<any>(undefined);
+  const [hkBasemapImagery, setHkBasemapImagery] = useState<any>(undefined);
 
   const COL = { LAT_R: 1, LON_R: 2, ALT_R: 3, LAT_B: 4, LON_B: 5, ALT_B: 6, SNR: 9 };
 
@@ -169,12 +169,22 @@ const CesiumMap = ({
       createWorldTerrainAsync({ requestVertexNormals: true }).then(setTerrainProvider).catch(err => {
         console.warn("Terrain loading failed:", err);
       });
-      createWorldImageryAsync().then(setSatelliteImagery).catch(err => {
-        console.warn("Cesium World Imagery failed to load, using fallback", err);
+      ArcGisMapServerImageryProvider.fromUrl(
+        'https://api.hkmapservice.gov.hk/ags/map/basemap/WGS84?key=0c90cdcd13904a66b6c60130f34c9ffa'
+      ).then(setHkBasemapImagery).catch(err => {
+        console.warn("Hong Kong basemap failed to load, using imagery fallback", err);
       });
     }
   }, []);
 
+  const hkImagery = useMemo(() => new UrlTemplateImageryProvider({
+    url: 'https://mapapi.geodata.gov.hk/gs/api/v1.0.0/xyz/imagery/WGS84/{z}/{x}/{y}.png',
+    credit: '© Map from Lands Department'
+  }), []);
+  const hkLabelImagery = useMemo(() => new UrlTemplateImageryProvider({
+    url: 'https://mapapi.geodata.gov.hk/gs/api/v1.0.0/xyz/label/hk/en/WGS84/{z}/{x}/{y}.png',
+    credit: '© Map from Lands Department'
+  }), []);
   const osmImagery = useMemo(() => new OpenStreetMapImageryProvider({ url: 'https://a.tile.openstreetmap.org/' }), []);
   const topoImagery = useMemo(() => new UrlTemplateImageryProvider({
     url: 'https://a.tile.opentopomap.org/{z}/{x}/{y}.png',
@@ -182,12 +192,16 @@ const CesiumMap = ({
   }), []);
   
   const baseImagery = useMemo(() => {
-    if (baseLayer === 'street') return osmImagery;
+    if (baseLayer === 'street') return hkBasemapImagery || hkImagery;
     if (baseLayer === 'topo') return topoImagery;
-    return satelliteImagery || osmImagery;
-  }, [baseLayer, satelliteImagery, osmImagery, topoImagery]);
+    return hkImagery;
+  }, [baseLayer, hkBasemapImagery, hkImagery, osmImagery, topoImagery]);
   
-  const showRoadsOverlay = showRoads && baseLayer === 'satellite';
+  const roadsOverlayImagery = useMemo(() => {
+    if (!showRoads) return null;
+    if (baseLayer === 'satellite') return hkLabelImagery;
+    return null;
+  }, [showRoads, baseLayer, hkLabelImagery]);
 
   const linkColor = useMemo(() => {
     const snr = currentData[COL.SNR];
@@ -232,7 +246,7 @@ const CesiumMap = ({
       >
         <SceneInitializer terrainProvider={terrainProvider} center={{ lon: currentData[COL.LON_R], lat: currentData[COL.LAT_R] }} flyToTarget={flyToTarget} mapMode={mapMode} />
         <ImageryLayer imageryProvider={baseImagery} />
-        {showRoadsOverlay && <ImageryLayer imageryProvider={osmImagery} alpha={0.45} />}
+        {roadsOverlayImagery && <ImageryLayer imageryProvider={roadsOverlayImagery} alpha={0.75} brightness={1.1} />}
 
         {/* UAV 飞行轨迹 */}
         {showTrail && (
