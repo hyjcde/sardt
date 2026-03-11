@@ -77,6 +77,23 @@ export default function Home(props: any) {
   };
 
   const currentData = useMemo(() => realData[dataIndex] || realData[0], [dataIndex]);
+  const mapSourceLabel = useMemo(() => {
+    if (baseLayer === 'satellite') return 'LandsD Imagery + HK Labels';
+    if (baseLayer === 'street') return 'LandsD Basemap Service';
+    return 'Topo Analysis Layer';
+  }, [baseLayer]);
+  const localSceneScore = useMemo(() => {
+    let score = 55;
+    if (mapMode === '3d') score += 15;
+    if (baseLayer === 'satellite') score += 10;
+    if (showRoads) score += 8;
+    if (showBuildings && mapMode === '3d') score += 12;
+    return Math.min(score, 100);
+  }, [mapMode, baseLayer, showRoads, showBuildings]);
+  const buildingStatus = useMemo(() => {
+    if (mapMode === '2d') return '2D mode hides 3D buildings';
+    return showBuildings ? 'Hong Kong 3D tiles enabled' : '3D buildings disabled';
+  }, [mapMode, showBuildings]);
   
   const history = useMemo(() => {
     const start = Math.max(0, dataIndex - 50);
@@ -122,6 +139,14 @@ export default function Home(props: any) {
       setLogs(prev => [`[${now.toLocaleTimeString()}] ${randomEvent}`, ...prev].slice(0, 12));
     }
   }, [dataIndex, currentData]);
+
+  const applyMaxPrecisionPreset = () => {
+    setMapMode('3d');
+    setBaseLayer('satellite');
+    setShowRoads(true);
+    setShowBuildings(true);
+    setShowLabels(true);
+  };
 
   return (
     <main className="relative w-screen h-screen text-zinc-200 font-mono overflow-hidden">
@@ -486,6 +511,34 @@ export default function Home(props: any) {
                 <span className="text-[10px] font-black text-zinc-300 uppercase tracking-wider">Map & Layers</span>
               </div>
               <div className="space-y-3">
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="rounded-lg bg-white/5 border border-white/10 px-2.5 py-2">
+                    <p className="text-[7px] text-zinc-500 uppercase font-black">Scene</p>
+                    <p className="text-[11px] font-black text-white mt-1">{mapMode === '3d' ? '2.5D Terrain' : '2D Flat'}</p>
+                  </div>
+                  <div className="rounded-lg bg-white/5 border border-white/10 px-2.5 py-2">
+                    <p className="text-[7px] text-zinc-500 uppercase font-black">Source</p>
+                    <p className="text-[11px] font-black text-emerald-400 mt-1">{baseLayer === 'satellite' ? 'HK Sat' : baseLayer === 'street' ? 'HK Nav' : 'Terrain'}</p>
+                  </div>
+                  <div className="rounded-lg bg-white/5 border border-white/10 px-2.5 py-2">
+                    <p className="text-[7px] text-zinc-500 uppercase font-black">Detail</p>
+                    <p className="text-[11px] font-black text-cyan-400 mt-1">{localSceneScore}%</p>
+                  </div>
+                </div>
+                <div className="rounded-lg bg-cyan-500/5 border border-cyan-500/10 px-3 py-2.5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[8px] text-cyan-300 uppercase font-black tracking-wider">Rescue Precision Preset</p>
+                      <p className="text-[9px] text-zinc-400 mt-1">Keep current AOI, switch to the highest-detail Hong Kong stack.</p>
+                    </div>
+                    <button
+                      onClick={applyMaxPrecisionPreset}
+                      className="shrink-0 rounded-lg bg-cyan-500/15 px-3 py-2 text-[9px] font-black uppercase text-cyan-300 ring-1 ring-cyan-500/30 transition-all hover:bg-cyan-500/25"
+                    >
+                      Max Precision
+                    </button>
+                  </div>
+                </div>
                 <div>
                   <p className="text-[8px] text-zinc-500 uppercase mb-1.5 font-black">Mode</p>
                   <div className="flex gap-1.5">
@@ -531,13 +584,25 @@ export default function Home(props: any) {
                   <span className="text-[8px] text-zinc-500 uppercase font-black">3D Buildings</span>
                   <button
                     onClick={() => setShowBuildings(!showBuildings)}
-                    className={`w-9 h-5 rounded-full transition-all ${showBuildings ? 'bg-cyan-500/50' : 'bg-zinc-700'}`}
+                    className={`w-9 h-5 rounded-full transition-all ${showBuildings ? 'bg-cyan-500/50' : 'bg-zinc-700'} ${mapMode === '2d' ? 'opacity-50' : ''}`}
                   >
                     <div className={`w-4 h-4 rounded-full bg-white shadow transition-transform ${showBuildings ? 'translate-x-5' : 'translate-x-0.5'}`} />
                   </button>
                 </div>
-                <div className="rounded-lg bg-cyan-500/5 border border-cyan-500/10 px-3 py-2 text-[9px] text-zinc-400 leading-relaxed">
-                  `HK Sat` + `Roads & Labels` + `3D Buildings` in `2.5D Terrain` gives the highest-precision Hong Kong rescue view.
+                <div className="rounded-lg bg-white/5 border border-white/10 px-3 py-2.5 text-[9px] leading-relaxed">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-zinc-500 uppercase font-black text-[8px]">Active Source</span>
+                    <span className="text-emerald-400 font-black">{mapSourceLabel}</span>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between gap-3">
+                    <span className="text-zinc-500 uppercase font-black text-[8px]">Buildings</span>
+                    <span className={`${mapMode === '2d' ? 'text-amber-400' : showBuildings ? 'text-cyan-400' : 'text-zinc-400'} font-black`}>
+                      {buildingStatus}
+                    </span>
+                  </div>
+                  <div className="mt-2 pt-2 border-t border-white/5 text-zinc-400">
+                    Best local setup: <span className="text-white font-black">HK Sat</span> + <span className="text-white font-black">Roads & Labels</span> + <span className="text-white font-black">3D Buildings</span> in <span className="text-white font-black">2.5D Terrain</span>.
+                  </div>
                 </div>
               </div>
             </section>
