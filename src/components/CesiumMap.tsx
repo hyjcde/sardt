@@ -25,7 +25,10 @@ import {
 import React, { useEffect, useMemo, useRef, useState, memo } from 'react';
 import { BillboardGraphics, CylinderGraphics, Entity, ImageryLayer, LabelGraphics, ModelGraphics, PolylineGraphics, useCesium, Viewer } from 'resium';
 
-const DRONE_MODEL_URI = '/models/CesiumDrone.glb';
+// CC-BY-4.0 attribution:
+// "DJI Mavic 3" by llirikslon
+// https://sketchfab.com/3d-models/dji-mavic-3-c5a5abae1dea468ab73b1bdc7d616fa6
+const DRONE_MODEL_URI = '/models/dji_mavic_3.glb';
 
 // 基站图标 SVG - 信号塔形状
 const BASE_ICON = `data:image/svg+xml,${encodeURIComponent(`
@@ -371,9 +374,9 @@ const CesiumMap = ({
         <Entity key="uav-marker" position={uavPos} orientation={uavOrientation as any}>
           <ModelGraphics 
             uri={DRONE_MODEL_URI}
-            scale={2.5}
+            scale={1}
             minimumPixelSize={64}
-            maximumScale={200}
+            maximumScale={128}
             silhouetteColor={Color.CYAN}
             silhouetteSize={1.5}
           />
