@@ -374,9 +374,9 @@ const CesiumMap = ({
         <Entity key="uav-marker" position={uavPos} orientation={uavOrientation as any}>
           <ModelGraphics 
             uri={DRONE_MODEL_URI}
-            scale={1}
-            minimumPixelSize={64}
-            maximumScale={128}
+            scale={0.45}
+            minimumPixelSize={40}
+            maximumScale={72}
             silhouetteColor={Color.CYAN}
             silhouetteSize={1.5}
           />
