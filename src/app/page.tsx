@@ -70,7 +70,7 @@ export default function Home(props: any) {
   const [flyToTarget, setFlyToTarget] = useState<{ lon: number, lat: number, alt: number } | null>(null); // 飞行目标
   // 地图模式与图层
   const [mapMode, setMapMode] = useState<'2d' | '3d'>('3d');           // 2D 平面 / 2.5D 地形
-  const [baseLayer, setBaseLayer] = useState<'satellite' | 'street' | 'topo'>('satellite'); // 底图
+  const [baseLayer, setBaseLayer] = useState<'satellite' | 'street' | 'topo' | 'google'>('satellite'); // 底图
   const [showRoads, setShowRoads] = useState(true);                     // 道路/标注叠加（仅部分底图有效）
   const [showBuildings, setShowBuildings] = useState(true);             // 香港官方 3D 楼宇
   
@@ -83,6 +83,7 @@ export default function Home(props: any) {
   const currentData = useMemo(() => realData[dataIndex] || realData[0], [dataIndex]);
   const prevData = useMemo(() => dataIndex > 0 ? realData[dataIndex - 1] : undefined, [dataIndex]);
   const mapSourceLabel = useMemo(() => {
+    if (baseLayer === 'google') return 'Google Hybrid (Sat + Labels)';
     if (baseLayer === 'satellite') return 'LandsD Imagery + HK Labels';
     if (baseLayer === 'street') return 'LandsD Basemap Service';
     return 'Topo Analysis Layer';
@@ -90,7 +91,8 @@ export default function Home(props: any) {
   const localSceneScore = useMemo(() => {
     let score = 55;
     if (mapMode === '3d') score += 15;
-    if (baseLayer === 'satellite') score += 10;
+    if (baseLayer === 'satellite' || baseLayer === 'google') score += 10;
+    if (baseLayer === 'google') score += 5;
     if (showRoads) score += 8;
     if (showBuildings && mapMode === '3d') score += 12;
     return Math.min(score, 100);
@@ -152,12 +154,35 @@ export default function Home(props: any) {
     return 'High';
   }, [currentData]);
 
+  const signalTrend = useMemo(() => {
+    if (history.length < 6) return 'stable' as const;
+    const recent = history.slice(-5);
+    const older = history.slice(-10, -5);
+    if (older.length === 0) return 'stable' as const;
+    const recentAvg = recent.reduce((a, h) => a + h.snr, 0) / recent.length;
+    const olderAvg = older.reduce((a, h) => a + h.snr, 0) / older.length;
+    const delta = recentAvg - olderAvg;
+    if (delta > 1.5) return 'improving' as const;
+    if (delta < -1.5) return 'degrading' as const;
+    return 'stable' as const;
+  }, [history]);
+
+  const uplinkStatus = useMemo(() => {
+    if (currentData[COL.SNR] > 15 && currentData[COL.SIG] > 85) return 'Nominal';
+    if (currentData[COL.SNR] > 10 && currentData[COL.SIG] > 60) return 'Marginal';
+    return 'Critical';
+  }, [currentData]);
+
   const recommendedAction = useMemo(() => {
+    if (linkRisk === 'High' && signalTrend === 'degrading') return 'Link degrading rapidly — RTB or climb to safe altitude immediately.';
     if (linkRisk === 'High') return 'Climb slightly or tighten orbit to restore uplink margin.';
+    if (missionPhase === 'Target Verify' && linkRisk === 'Low') return 'Hold hover, maintain optical lock, and cue ground rescue team.';
+    if (missionPhase === 'Target Verify') return 'Target proximity — reduce speed, verify visual contact before committing.';
+    if (currentData[COL.DIST] > 35 && signalTrend === 'improving') return 'Signal recovering at range — continue sweep, monitor for sustained lock.';
     if (currentData[COL.DIST] > 35) return 'Track forward and prepare close visual confirmation pass.';
-    if (missionPhase === 'Target Verify') return 'Hold hover, maintain optical lock, and cue rescue team.';
-    return 'Maintain sweep corridor and keep current Hong Kong precision stack.';
-  }, [linkRisk, currentData, missionPhase]);
+    if (signalTrend === 'degrading' && linkRisk === 'Guarded') return 'Signal weakening — consider reducing range or increasing altitude.';
+    return 'Maintain sweep corridor. Signal and link nominal.';
+  }, [linkRisk, currentData, missionPhase, signalTrend]);
 
   const missionCoverage = useMemo(
     () => Math.round((dataIndex / Math.max(realData.length - 1, 1)) * 100),
@@ -306,15 +331,15 @@ export default function Home(props: any) {
           <div className="flex gap-3">
             <div className="bg-zinc-900/60 backdrop-blur-xl border border-white/10 px-5 py-3 rounded-xl flex items-center gap-4 shadow-2xl relative overflow-hidden group hover:bg-zinc-900/80 transition-all">
               <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-transparent via-emerald-500/50 to-transparent" />
-              <div className="w-11 h-11 rounded-full border border-emerald-500/30 flex items-center justify-center bg-emerald-500/10 relative">
-                <Shield className="text-emerald-400 w-5 h-5 z-10" />
-                <div className="absolute inset-0 border border-emerald-500/20 rounded-full animate-ping" />
+              <div className={`w-11 h-11 rounded-full border flex items-center justify-center relative ${uplinkStatus === 'Nominal' ? 'border-emerald-500/30 bg-emerald-500/10' : uplinkStatus === 'Marginal' ? 'border-amber-500/30 bg-amber-500/10' : 'border-red-500/30 bg-red-500/10'}`}>
+                <Shield className={`w-5 h-5 z-10 ${uplinkStatus === 'Nominal' ? 'text-emerald-400' : uplinkStatus === 'Marginal' ? 'text-amber-400' : 'text-red-400'}`} />
+                <div className={`absolute inset-0 border rounded-full animate-ping ${uplinkStatus === 'Nominal' ? 'border-emerald-500/20' : uplinkStatus === 'Marginal' ? 'border-amber-500/20' : 'border-red-500/20'}`} />
               </div>
               <div>
                 <h1 className="text-sm font-black text-white tracking-[0.4em] uppercase leading-none">SAR-DT COMMAND</h1>
                 <div className="flex items-center gap-2 mt-1.5">
-                  <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_8px_#10b981]" />
-                  <span className="text-[9px] text-emerald-400 font-black tracking-widest uppercase">UAV-01 Uplink Stable</span>
+                  <div className={`w-2 h-2 rounded-full animate-pulse ${uplinkStatus === 'Nominal' ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : uplinkStatus === 'Marginal' ? 'bg-amber-500 shadow-[0_0_8px_#f59e0b]' : 'bg-red-500 shadow-[0_0_8px_#ef4444]'}`} />
+                  <span className={`text-[9px] font-black tracking-widest uppercase ${uplinkStatus === 'Nominal' ? 'text-emerald-400' : uplinkStatus === 'Marginal' ? 'text-amber-400' : 'text-red-400'}`}>UAV-01 Uplink {uplinkStatus}</span>
                 </div>
               </div>
             </div>
@@ -637,7 +662,7 @@ export default function Home(props: any) {
                   </div>
                 </div>
               </div>
-              <div className="mt-3 grid grid-cols-3 gap-2 text-[8px] uppercase">
+              <div className="mt-3 grid grid-cols-4 gap-2 text-[8px] uppercase">
                 <div className="rounded-lg bg-black/25 px-2.5 py-2 text-center">
                   <p className="text-zinc-500 font-black">Sweep HDG</p>
                   <p className="mt-1 font-black text-white">{sweepHeading}°</p>
@@ -645,6 +670,12 @@ export default function Home(props: any) {
                 <div className="rounded-lg bg-black/25 px-2.5 py-2 text-center">
                   <p className="text-zinc-500 font-black">Signal</p>
                   <p className={`mt-1 font-black ${currentData[COL.SIG] > 85 ? 'text-emerald-400' : currentData[COL.SIG] > 70 ? 'text-amber-400' : 'text-red-400'}`}>{currentData[COL.SIG]}%</p>
+                </div>
+                <div className="rounded-lg bg-black/25 px-2.5 py-2 text-center">
+                  <p className="text-zinc-500 font-black">Trend</p>
+                  <p className={`mt-1 font-black ${signalTrend === 'improving' ? 'text-emerald-400' : signalTrend === 'degrading' ? 'text-red-400' : 'text-zinc-300'}`}>
+                    {signalTrend === 'improving' ? '↑ Up' : signalTrend === 'degrading' ? '↓ Down' : '— Flat'}
+                  </p>
                 </div>
                 <div className="rounded-lg bg-black/25 px-2.5 py-2 text-center">
                   <p className="text-zinc-500 font-black">Orbit</p>
@@ -691,7 +722,7 @@ export default function Home(props: any) {
                   </div>
                   <div className="rounded-lg bg-white/5 border border-white/10 px-2.5 py-2">
                     <p className="text-[7px] text-zinc-500 uppercase font-black">Source</p>
-                    <p className="text-[11px] font-black text-emerald-400 mt-1">{baseLayer === 'satellite' ? 'HK Sat' : baseLayer === 'street' ? 'HK Nav' : 'Terrain'}</p>
+                    <p className="text-[11px] font-black text-emerald-400 mt-1">{baseLayer === 'satellite' ? 'HK Sat' : baseLayer === 'google' ? 'Google' : baseLayer === 'street' ? 'HK Nav' : 'Terrain'}</p>
                   </div>
                   <div className="rounded-lg bg-white/5 border border-white/10 px-2.5 py-2">
                     <p className="text-[7px] text-zinc-500 uppercase font-black">Detail</p>
@@ -731,17 +762,21 @@ export default function Home(props: any) {
                 </div>
                 <div>
                   <p className="text-[8px] text-zinc-500 uppercase mb-1.5 font-black">Base Layer</p>
-                  <div className="grid grid-cols-3 gap-1.5">
-                    {(['satellite', 'street', 'topo'] as const).map((layer) => (
-                      <button
-                        key={layer}
-                        onClick={() => setBaseLayer(layer)}
-                        className={`py-2 rounded-lg text-[9px] font-black uppercase transition-all ${baseLayer === layer ? 'bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/40' : 'bg-white/5 text-zinc-500 hover:bg-white/10 hover:text-zinc-300'}`}
-                        title={layer === 'satellite' ? 'Hong Kong official imagery' : layer === 'street' ? 'Hong Kong official navigation basemap' : 'Terrain analysis map'}
-                      >
-                        {layer === 'satellite' ? 'HK Sat' : layer === 'street' ? 'HK Nav' : 'Terrain'}
-                      </button>
-                    ))}
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {(['satellite', 'google', 'street', 'topo'] as const).map((layer) => {
+                      const labels: Record<string, string> = { satellite: 'HK Sat', google: 'Google', street: 'HK Nav', topo: 'Terrain' };
+                      const titles: Record<string, string> = { satellite: 'Hong Kong LandsD imagery', google: 'Google Hybrid satellite + rich labels', street: 'Hong Kong official navigation basemap', topo: 'Terrain analysis map' };
+                      return (
+                        <button
+                          key={layer}
+                          onClick={() => setBaseLayer(layer)}
+                          className={`py-2 rounded-lg text-[9px] font-black uppercase transition-all ${baseLayer === layer ? 'bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/40' : 'bg-white/5 text-zinc-500 hover:bg-white/10 hover:text-zinc-300'}`}
+                          title={titles[layer]}
+                        >
+                          {labels[layer]}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
                 <div className="flex items-center justify-between pt-1">
@@ -774,7 +809,7 @@ export default function Home(props: any) {
                     </span>
                   </div>
                   <div className="mt-2 pt-2 border-t border-white/5 text-zinc-400">
-                    Best local setup: <span className="text-white font-black">HK Sat</span> + <span className="text-white font-black">Roads & Labels</span> + <span className="text-white font-black">3D Buildings</span> in <span className="text-white font-black">2.5D Terrain</span>.
+                    Best setups: <span className="text-white font-black">HK Sat</span> for local precision, <span className="text-white font-black">Google</span> for global labels. Pair with <span className="text-white font-black">3D Buildings</span> + <span className="text-white font-black">2.5D Terrain</span>.
                   </div>
                   <div className="mt-2 pt-2 border-t border-white/5 text-zinc-400">
                     View logic: <span className="font-black text-cyan-300">Auto density by zoom</span> keeps strategic views clean and restores detailed scan geometry when close in.

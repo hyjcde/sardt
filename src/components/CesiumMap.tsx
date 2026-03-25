@@ -224,7 +224,7 @@ interface CesiumMapProps {
   showSignalLink?: boolean;
   flyToTarget?: { lon: number, lat: number, alt: number } | null;
   mapMode?: '2d' | '3d';
-  baseLayer?: 'satellite' | 'street' | 'topo';
+  baseLayer?: 'satellite' | 'street' | 'topo' | 'google';
   showRoads?: boolean;
   showBuildings?: boolean;
 }
@@ -278,12 +278,17 @@ const CesiumMap = ({
     url: 'https://a.tile.opentopomap.org/{z}/{x}/{y}.png',
     credit: 'Map data: © OpenStreetMap, SRTM | Map style: © OpenTopoMap'
   }), []);
+  const googleHybridImagery = useMemo(() => new UrlTemplateImageryProvider({
+    url: 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+    credit: '© Google'
+  }), []);
   
   const baseImagery = useMemo(() => {
+    if (baseLayer === 'google') return googleHybridImagery;
     if (baseLayer === 'street') return hkBasemapImagery || hkImagery;
     if (baseLayer === 'topo') return topoImagery;
     return hkImagery;
-  }, [baseLayer, hkBasemapImagery, hkImagery, osmImagery, topoImagery]);
+  }, [baseLayer, hkBasemapImagery, hkImagery, osmImagery, topoImagery, googleHybridImagery]);
   
   const roadsOverlayImagery = useMemo(() => {
     if (!showRoads) return null;
