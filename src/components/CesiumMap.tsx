@@ -461,13 +461,13 @@ const CesiumMap = ({
             scale={0.38}
             minimumPixelSize={36}
             maximumScale={64}
-            silhouetteColor={signalAccentColor}
+            silhouetteColor={Color.WHITE}
             silhouetteSize={1.5}
           />
           {autoShowLabels && (
             <LabelGraphics 
               text={`UAV-01 | ${currentData[COL.ALT_R].toFixed(0)}m AGL`} 
-              font="bold 16px sans-serif" fillColor={signalAccentColor} outlineColor={Color.BLACK} outlineWidth={4}
+              font="bold 16px sans-serif" fillColor={Color.WHITE} outlineColor={Color.BLACK} outlineWidth={4}
               verticalOrigin={VerticalOrigin.BOTTOM} pixelOffset={new Cartesian2(0, -42)} 
               horizontalOrigin={HorizontalOrigin.CENTER}
               disableDepthTestDistance={Number.POSITIVE_INFINITY}
