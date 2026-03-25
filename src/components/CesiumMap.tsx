@@ -30,19 +30,39 @@ import { BillboardGraphics, CylinderGraphics, Entity, ImageryLayer, LabelGraphic
 // https://sketchfab.com/3d-models/dji-mavic-3-c5a5abae1dea468ab73b1bdc7d616fa6
 const DRONE_MODEL_URI = '/models/dji_mavic_3.glb';
 
-// 基站图标 SVG - 信号塔形状
 const BASE_ICON = `data:image/svg+xml,${encodeURIComponent(`
-<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
   <defs>
-    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
-      <feGaussianBlur stdDeviation="2" result="blur"/>
-      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    <filter id="g" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="1.8" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
+    <linearGradient id="tower" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e2e8f0"/>
+      <stop offset="100%" stop-color="#94a3b8"/>
+    </linearGradient>
+    <linearGradient id="base" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#475569"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
   </defs>
-  <path d="M24 4 L32 44 L24 38 L16 44 Z" fill="#ff4444" stroke="#ffffff" stroke-width="2" filter="url(#glow)"/>
-  <circle cx="24" cy="12" r="5" fill="#ffffff" stroke="#ff4444" stroke-width="2"/>
-  <path d="M14 18 Q24 8 34 18" fill="none" stroke="#ff4444" stroke-width="2" opacity="0.6"/>
-  <path d="M10 22 Q24 8 38 22" fill="none" stroke="#ff4444" stroke-width="2" opacity="0.4"/>
+  <ellipse cx="32" cy="58" rx="14" ry="3" fill="#000" opacity="0.25"/>
+  <rect x="28" y="24" width="8" height="34" rx="1.5" fill="url(#tower)" stroke="#cbd5e1" stroke-width="0.8"/>
+  <rect x="30" y="28" width="4" height="4" rx="0.5" fill="#334155"/>
+  <rect x="30" y="34" width="4" height="4" rx="0.5" fill="#334155"/>
+  <rect x="30" y="40" width="4" height="4" rx="0.5" fill="#334155"/>
+  <line x1="22" y1="52" x2="28" y2="38" stroke="url(#tower)" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="42" y1="52" x2="36" y2="38" stroke="url(#tower)" stroke-width="2.5" stroke-linecap="round"/>
+  <rect x="24" y="54" width="16" height="4" rx="2" fill="url(#base)"/>
+  <rect x="29" y="18" width="6" height="8" rx="1" fill="#e11d48" stroke="#fff" stroke-width="1"/>
+  <line x1="32" y1="8" x2="32" y2="18" stroke="#e2e8f0" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="32" cy="7" r="2.5" fill="#f43f5e" filter="url(#g)"/>
+  <path d="M22 16 Q27 8 32 7" fill="none" stroke="#f43f5e" stroke-width="1.8" stroke-linecap="round" opacity="0.8"/>
+  <path d="M18 20 Q25 9 32 7" fill="none" stroke="#f43f5e" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+  <path d="M14 24 Q23 10 32 7" fill="none" stroke="#f43f5e" stroke-width="1.2" stroke-linecap="round" opacity="0.3"/>
+  <path d="M42 16 Q37 8 32 7" fill="none" stroke="#f43f5e" stroke-width="1.8" stroke-linecap="round" opacity="0.8"/>
+  <path d="M46 20 Q39 9 32 7" fill="none" stroke="#f43f5e" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+  <path d="M50 24 Q41 10 32 7" fill="none" stroke="#f43f5e" stroke-width="1.2" stroke-linecap="round" opacity="0.3"/>
 </svg>
 `)}`;
 
@@ -414,8 +434,8 @@ const CesiumMap = ({
         <Entity key="base-station" position={targetPos}>
           <BillboardGraphics 
             image={BASE_ICON}
-            width={48}
-            height={48}
+            width={56}
+            height={56}
             verticalOrigin={VerticalOrigin.BOTTOM}
             disableDepthTestDistance={Number.POSITIVE_INFINITY}
             scaleByDistance={new NearFarScalar(100, 1.3, 3000, 0.7)}
