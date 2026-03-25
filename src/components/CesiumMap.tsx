@@ -22,7 +22,7 @@ import {
   UrlTemplateImageryProvider,
   EllipsoidTerrainProvider
 } from 'cesium';
-import React, { useEffect, useMemo, useRef, useState, memo } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState, memo } from 'react';
 import { BillboardGraphics, CylinderGraphics, Entity, ImageryLayer, LabelGraphics, ModelGraphics, PolylineGraphics, useCesium, Viewer } from 'resium';
 
 // CC-BY-4.0 attribution:
@@ -53,6 +53,33 @@ const HK_3D_TILESET_URL = 'https://data.map.gov.hk/api/3d-data/3dtiles/f2/tilese
 
 // 用于存储 viewer 实例的全局引用
 let globalViewerRef: any = null;
+
+const ViewStateMonitor = ({ onHeightChange }: { onHeightChange: (height: number) => void }) => {
+  const { viewer } = useCesium();
+
+  useEffect(() => {
+    if (!viewer) return;
+
+    let frameId = 0;
+    const updateHeight = () => {
+      if (frameId) return;
+      frameId = window.requestAnimationFrame(() => {
+        frameId = 0;
+        onHeightChange(Math.max(0, viewer.camera.positionCartographic?.height ?? 0));
+      });
+    };
+
+    updateHeight();
+    viewer.camera.changed.addEventListener(updateHeight);
+
+    return () => {
+      viewer.camera.changed.removeEventListener(updateHeight);
+      if (frameId) window.cancelAnimationFrame(frameId);
+    };
+  }, [viewer, onHeightChange]);
+
+  return null;
+};
 
 const HongKongBuildingsLayer = ({ enabled }: { enabled: boolean }) => {
   const { viewer } = useCesium();
@@ -219,6 +246,7 @@ const CesiumMap = ({
   const [mounted, setMounted] = useState(false);
   const [terrainProvider, setTerrainProvider] = useState<any>(undefined);
   const [hkBasemapImagery, setHkBasemapImagery] = useState<any>(undefined);
+  const [cameraHeight, setCameraHeight] = useState(1400);
 
   const COL = { LAT_R: 1, LON_R: 2, ALT_R: 3, LAT_B: 4, LON_B: 5, ALT_B: 6, SNR: 9 };
 
@@ -270,6 +298,32 @@ const CesiumMap = ({
     return Color.RED.withAlpha(0.7);
   }, [currentData[COL.SNR]]);
 
+  const signalAccentColor = useMemo(() => {
+    const snr = currentData[COL.SNR];
+    if (snr > 15) return Color.LIME;
+    if (snr > 10) return Color.GOLD;
+    return Color.RED;
+  }, [currentData[COL.SNR]]);
+
+  const sceneDetail = useMemo(() => {
+    if (mapMode === '2d') return cameraHeight > 1800 ? 'strategic' : 'operational';
+    if (cameraHeight > 2200) return 'strategic';
+    if (cameraHeight > 900) return 'operational';
+    return 'inspection';
+  }, [cameraHeight, mapMode]);
+
+  const autoShowLabels = showLabels && sceneDetail !== 'strategic';
+  const autoShowCone = showCone && sceneDetail === 'inspection';
+  const autoShowTrail = showTrail && sceneDetail !== 'inspection';
+  const autoShowGroundProjection = sceneDetail !== 'strategic';
+  const autoShowSignalLink = showSignalLink && (sceneDetail !== 'inspection' || currentData[COL.SNR] <= 10);
+
+  const trailWidth = sceneDetail === 'strategic' ? 3 : sceneDetail === 'operational' ? 5 : 6;
+  const linkWidth = sceneDetail === 'strategic' ? 6 : 8;
+  const setCameraHeightStable = useCallback((height: number) => {
+    setCameraHeight(prev => (Math.abs(prev - height) > 20 ? height : prev));
+  }, []);
+
   // 使用 useMemo 稳定位置计算，减少重新渲染
   const uavPos = useMemo(() => 
     Cartesian3.fromDegrees(currentData[COL.LON_R], currentData[COL.LAT_R], currentData[COL.ALT_R]),
@@ -290,15 +344,19 @@ const CesiumMap = ({
   // 根据前后帧位置计算无人机航向
   const uavOrientation = useMemo(() => {
     let heading = 0;
+    let pitch = 0;
+    let roll = 0;
     if (prevData) {
       const dLon = currentData[COL.LON_R] - prevData[COL.LON_R];
       const dLat = currentData[COL.LAT_R] - prevData[COL.LAT_R];
       if (Math.abs(dLon) > 1e-9 || Math.abs(dLat) > 1e-9) {
         const cosLat = Math.cos(currentData[COL.LAT_R] * Math.PI / 180);
         heading = Math.atan2(dLon * cosLat, dLat);
+        roll = CesiumMath.clamp((-dLon * cosLat * 111320) / 120, -0.16, 0.16);
       }
+      pitch = CesiumMath.clamp((currentData[COL.ALT_R] - prevData[COL.ALT_R]) / 55, -0.14, 0.14);
     }
-    const hpr = new HeadingPitchRoll(heading, 0, 0);
+    const hpr = new HeadingPitchRoll(heading, pitch, roll);
     return Transforms.headingPitchRollQuaternion(uavPos, hpr);
   }, [uavPos, prevData, currentData]);
   
@@ -319,28 +377,29 @@ const CesiumMap = ({
         sceneModePicker={false} projectionPicker={false}
         scene3DOnly={false} contextOptions={CONTEXT_OPTIONS}
       >
+        <ViewStateMonitor onHeightChange={setCameraHeightStable} />
         <SceneInitializer terrainProvider={terrainProvider} center={{ lon: currentData[COL.LON_R], lat: currentData[COL.LAT_R] }} flyToTarget={flyToTarget} mapMode={mapMode} />
         <ImageryLayer imageryProvider={baseImagery} />
         {roadsOverlayImagery && <ImageryLayer imageryProvider={roadsOverlayImagery} alpha={0.75} brightness={1.1} />}
         <HongKongBuildingsLayer enabled={mapMode === '3d' && showBuildings} />
 
         {/* UAV 飞行轨迹 */}
-        {showTrail && (
+        {autoShowTrail && (
           <Entity key="uav-trail">
             <PolylineGraphics 
               positions={trailPositions} 
-              width={5} 
-              material={new PolylineDashMaterialProperty({ color: Color.CYAN.withAlpha(0.6), dashLength: 16 })} 
+              width={trailWidth} 
+              material={new PolylineDashMaterialProperty({ color: signalAccentColor.withAlpha(0.65), dashLength: 16 })} 
             />
           </Entity>
         )}
 
         {/* UAV 与基站之间的信号连接线 */}
-        {showSignalLink && (
+        {autoShowSignalLink && (
           <Entity key="signal-link">
             <PolylineGraphics 
               positions={[uavPos, targetPos]} 
-              width={8} 
+              width={linkWidth} 
               material={new PolylineGlowMaterialProperty({ glowPower: 0.6, color: linkColor })} 
             />
           </Entity>
@@ -356,7 +415,7 @@ const CesiumMap = ({
             disableDepthTestDistance={Number.POSITIVE_INFINITY}
             scaleByDistance={new NearFarScalar(100, 1.3, 3000, 0.7)}
           />
-          {showLabels && (
+          {autoShowLabels && (
             <LabelGraphics 
               text={`GND STATION`} 
               font="bold 16px sans-serif" fillColor={Color.WHITE} 
@@ -374,16 +433,16 @@ const CesiumMap = ({
         <Entity key="uav-marker" position={uavPos} orientation={uavOrientation as any}>
           <ModelGraphics 
             uri={DRONE_MODEL_URI}
-            scale={0.45}
-            minimumPixelSize={40}
-            maximumScale={72}
-            silhouetteColor={Color.CYAN}
+            scale={0.38}
+            minimumPixelSize={36}
+            maximumScale={64}
+            silhouetteColor={signalAccentColor}
             silhouetteSize={1.5}
           />
-          {showLabels && (
+          {autoShowLabels && (
             <LabelGraphics 
               text={`UAV-01 | ${currentData[COL.ALT_R].toFixed(0)}m AGL`} 
-              font="bold 16px sans-serif" fillColor={Color.CYAN} outlineColor={Color.BLACK} outlineWidth={4}
+              font="bold 16px sans-serif" fillColor={signalAccentColor} outlineColor={Color.BLACK} outlineWidth={4}
               verticalOrigin={VerticalOrigin.BOTTOM} pixelOffset={new Cartesian2(0, -42)} 
               horizontalOrigin={HorizontalOrigin.CENTER}
               disableDepthTestDistance={Number.POSITIVE_INFINITY}
@@ -393,46 +452,56 @@ const CesiumMap = ({
         </Entity>
         
         {/* 扫描光锥 - 从 UAV 向下投射的光束 */}
-        {showCone && (
+        {autoShowCone && (
           <Entity key="scan-cone" position={conePos}>
             <CylinderGraphics 
               length={currentData[COL.ALT_R]} 
               topRadius={2} 
-              bottomRadius={currentData[COL.ALT_R] * 0.2} 
-              material={Color.CYAN.withAlpha(0.2)} 
+              bottomRadius={currentData[COL.ALT_R] * 0.18} 
+              material={signalAccentColor.withAlpha(0.18)} 
             />
           </Entity>
         )}
 
         {/* UAV 地面投影线 - 虚线样式 */}
-        <Entity key="ground-projection">
+        {autoShowGroundProjection && <Entity key="ground-projection">
           <PolylineGraphics 
             positions={[uavPos, Cartesian3.fromDegrees(currentData[COL.LON_R], currentData[COL.LAT_R], 0)]} 
             width={2} 
             material={new PolylineDashMaterialProperty({ color: Color.WHITE.withAlpha(0.4), dashLength: 8 })} 
           />
-        </Entity>
+        </Entity>}
         
         {/* 地面投影十字标记 */}
-        <Entity key="ground-cross-ns">
+        {autoShowGroundProjection && <Entity key="ground-cross-ns">
           <PolylineGraphics 
             positions={[
               Cartesian3.fromDegrees(currentData[COL.LON_R], currentData[COL.LAT_R] - 0.00003, 0.2),
               Cartesian3.fromDegrees(currentData[COL.LON_R], currentData[COL.LAT_R] + 0.00003, 0.2)
             ]} 
-            width={2} material={Color.CYAN.withAlpha(0.6)} 
+            width={2} material={signalAccentColor.withAlpha(0.6)} 
           />
-        </Entity>
-        <Entity key="ground-cross-ew">
+        </Entity>}
+        {autoShowGroundProjection && <Entity key="ground-cross-ew">
           <PolylineGraphics 
             positions={[
               Cartesian3.fromDegrees(currentData[COL.LON_R] - 0.00003, currentData[COL.LAT_R], 0.2),
               Cartesian3.fromDegrees(currentData[COL.LON_R] + 0.00003, currentData[COL.LAT_R], 0.2)
             ]} 
-            width={2} material={Color.CYAN.withAlpha(0.6)} 
+            width={2} material={signalAccentColor.withAlpha(0.6)} 
           />
-        </Entity>
+        </Entity>}
       </Viewer>
+
+      <div className="pointer-events-none fixed top-20 left-1/2 z-15 -translate-x-1/2 rounded-xl border border-white/10 bg-black/45 px-3 py-2 text-[10px] uppercase tracking-wider text-zinc-200 backdrop-blur-md">
+        <div className="flex items-center gap-4">
+          <span className="font-black text-cyan-300">View: {sceneDetail}</span>
+          <span className="text-zinc-400">Camera {cameraHeight.toFixed(0)}m</span>
+          <span className={currentData[COL.SNR] > 15 ? 'text-emerald-400' : currentData[COL.SNR] > 10 ? 'text-amber-400' : 'text-red-400'}>
+            Auto Density {sceneDetail === 'strategic' ? 'Low' : sceneDetail === 'operational' ? 'Balanced' : 'High'}
+          </span>
+        </div>
+      </div>
 
       <style jsx global>{`
         .cesium-viewer {

@@ -138,6 +138,40 @@ export default function Home(props: any) {
     return { missionTime, totalDist, maxAlt, avgSpeed };
   }, [dataIndex, currentData, fullHistory]);
 
+  const missionPhase = useMemo(() => {
+    const progress = dataIndex / Math.max(realData.length - 1, 1);
+    if (currentData[COL.DIST] < 18 && currentData[COL.SIG] > 88) return 'Target Verify';
+    if (progress < 0.2) return 'Ingress';
+    if (progress < 0.75) return 'Search Sweep';
+    return 'Recovery Prep';
+  }, [currentData, dataIndex]);
+
+  const linkRisk = useMemo(() => {
+    if (currentData[COL.SNR] > 15 && currentData[COL.RSSI] > -42) return 'Low';
+    if (currentData[COL.SNR] > 10 && currentData[COL.RSSI] > -50) return 'Guarded';
+    return 'High';
+  }, [currentData]);
+
+  const recommendedAction = useMemo(() => {
+    if (linkRisk === 'High') return 'Climb slightly or tighten orbit to restore uplink margin.';
+    if (currentData[COL.DIST] > 35) return 'Track forward and prepare close visual confirmation pass.';
+    if (missionPhase === 'Target Verify') return 'Hold hover, maintain optical lock, and cue rescue team.';
+    return 'Maintain sweep corridor and keep current Hong Kong precision stack.';
+  }, [linkRisk, currentData, missionPhase]);
+
+  const missionCoverage = useMemo(
+    () => Math.round((dataIndex / Math.max(realData.length - 1, 1)) * 100),
+    [dataIndex]
+  );
+
+  const sweepHeading = useMemo(() => {
+    if (!prevData) return '000';
+    const dLon = currentData[COL.LON_R] - prevData[COL.LON_R];
+    const dLat = currentData[COL.LAT_R] - prevData[COL.LAT_R];
+    const headingDeg = (Math.atan2(dLon, dLat) * 180 / Math.PI + 360) % 360;
+    return headingDeg.toFixed(0).padStart(3, '0');
+  }, [currentData, prevData]);
+
   useEffect(() => {
     if (isPaused) return;
     const interval = setInterval(() => {
@@ -574,6 +608,50 @@ export default function Home(props: any) {
 
           {/* 右侧面板 */}
           <div className="w-[420px] flex flex-col gap-3 pointer-events-auto shrink-0 overflow-y-auto scrollbar-hide">
+
+            <section className="bg-zinc-900/60 backdrop-blur-xl border border-white/10 rounded-xl p-3 shadow-2xl">
+              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-white/10">
+                <Target className="w-4 h-4 text-red-400" />
+                <span className="text-[10px] font-black text-zinc-300 uppercase tracking-wider">Mission Guidance</span>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="rounded-lg bg-white/5 border border-white/10 px-2.5 py-2">
+                  <p className="text-[7px] text-zinc-500 uppercase font-black">Phase</p>
+                  <p className="mt-1 text-[11px] font-black text-white">{missionPhase}</p>
+                </div>
+                <div className="rounded-lg bg-white/5 border border-white/10 px-2.5 py-2">
+                  <p className="text-[7px] text-zinc-500 uppercase font-black">Link Risk</p>
+                  <p className={`mt-1 text-[11px] font-black ${linkRisk === 'Low' ? 'text-emerald-400' : linkRisk === 'Guarded' ? 'text-amber-400' : 'text-red-400'}`}>{linkRisk}</p>
+                </div>
+                <div className="rounded-lg bg-white/5 border border-white/10 px-2.5 py-2">
+                  <p className="text-[7px] text-zinc-500 uppercase font-black">Coverage</p>
+                  <p className="mt-1 text-[11px] font-black text-cyan-400">{missionCoverage}%</p>
+                </div>
+              </div>
+              <div className="mt-3 rounded-lg bg-amber-500/5 border border-amber-500/20 px-3 py-2.5">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className={`mt-0.5 h-4 w-4 shrink-0 ${linkRisk === 'High' ? 'text-red-400' : linkRisk === 'Guarded' ? 'text-amber-400' : 'text-emerald-400'}`} />
+                  <div>
+                    <p className="text-[8px] font-black uppercase tracking-wider text-zinc-300">Recommended Action</p>
+                    <p className="mt-1 text-[10px] leading-relaxed text-zinc-400">{recommendedAction}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-3 grid grid-cols-3 gap-2 text-[8px] uppercase">
+                <div className="rounded-lg bg-black/25 px-2.5 py-2 text-center">
+                  <p className="text-zinc-500 font-black">Sweep HDG</p>
+                  <p className="mt-1 font-black text-white">{sweepHeading}°</p>
+                </div>
+                <div className="rounded-lg bg-black/25 px-2.5 py-2 text-center">
+                  <p className="text-zinc-500 font-black">Signal</p>
+                  <p className={`mt-1 font-black ${currentData[COL.SIG] > 85 ? 'text-emerald-400' : currentData[COL.SIG] > 70 ? 'text-amber-400' : 'text-red-400'}`}>{currentData[COL.SIG]}%</p>
+                </div>
+                <div className="rounded-lg bg-black/25 px-2.5 py-2 text-center">
+                  <p className="text-zinc-500 font-black">Orbit</p>
+                  <p className="mt-1 font-black text-white">{currentData[COL.DIST].toFixed(0)} m</p>
+                </div>
+              </div>
+            </section>
             
             {/* 工具栏 */}
             <aside className="bg-zinc-900/60 backdrop-blur-xl border border-white/10 p-2 rounded-xl flex flex-wrap items-center justify-center gap-1 shadow-2xl">
@@ -698,6 +776,40 @@ export default function Home(props: any) {
                   <div className="mt-2 pt-2 border-t border-white/5 text-zinc-400">
                     Best local setup: <span className="text-white font-black">HK Sat</span> + <span className="text-white font-black">Roads & Labels</span> + <span className="text-white font-black">3D Buildings</span> in <span className="text-white font-black">2.5D Terrain</span>.
                   </div>
+                  <div className="mt-2 pt-2 border-t border-white/5 text-zinc-400">
+                    View logic: <span className="font-black text-cyan-300">Auto density by zoom</span> keeps strategic views clean and restores detailed scan geometry when close in.
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section className="bg-zinc-900/60 backdrop-blur-xl border border-white/10 rounded-xl p-3 shadow-2xl">
+              <div className="flex items-center gap-2 mb-2.5 pb-2 border-b border-white/10">
+                <Info className="w-4 h-4 text-cyan-400" />
+                <span className="text-[10px] font-black text-zinc-300 uppercase tracking-wider">Map Legend</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                  <p className="text-[7px] uppercase font-black text-zinc-500">Aircraft</p>
+                  <div className="mt-1 flex items-center gap-2 text-[10px] font-black text-white">
+                    <span className="h-2.5 w-2.5 rounded-full bg-cyan-400 shadow-[0_0_12px_rgba(34,211,238,0.8)]" />
+                    DJI M3T Active
+                  </div>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                  <p className="text-[7px] uppercase font-black text-zinc-500">Link Path</p>
+                  <div className="mt-1 flex items-center gap-2 text-[10px] font-black text-white">
+                    <span className={`h-2.5 w-2.5 rounded-full ${linkRisk === 'Low' ? 'bg-emerald-400' : linkRisk === 'Guarded' ? 'bg-amber-400' : 'bg-red-400'}`} />
+                    Quality-coded
+                  </div>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                  <p className="text-[7px] uppercase font-black text-zinc-500">Scan Geometry</p>
+                  <div className="mt-1 text-[10px] font-black text-white">{showCone ? 'Near-view cone + ground mark' : 'Operator hidden'}</div>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                  <p className="text-[7px] uppercase font-black text-zinc-500">Scene Stack</p>
+                  <div className="mt-1 text-[10px] font-black text-white">{mapMode === '3d' ? 'Terrain + Buildings' : '2D flat mission map'}</div>
                 </div>
               </div>
             </section>
