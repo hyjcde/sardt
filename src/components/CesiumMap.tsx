@@ -458,6 +458,27 @@ const CesiumMap = ({
     return Cartesian3.fromDegreesArray([minLon, minLat, maxLon, minLat, maxLon, maxLat, minLon, maxLat, minLon, minLat]);
   }, [searchArea, showSearchGrid]);
 
+  const gridLabels = useMemo(() => {
+    if (!searchArea || !showSearchGrid) return [];
+    const { minLat, maxLat, minLon, maxLon } = searchArea;
+    const cellH = (maxLat - minLat) / gridDivisions;
+    const cellW = (maxLon - minLon) / gridDivisions;
+    const labels: { key: string; text: string; pos: Cartesian3 }[] = [];
+    const rows = 'ABCDEFGH';
+    for (let r = 0; r < gridDivisions; r++) {
+      for (let c = 0; c < gridDivisions; c++) {
+        const centerLat = minLat + (r + 0.5) * cellH;
+        const centerLon = minLon + (c + 0.5) * cellW;
+        labels.push({
+          key: `${r}-${c}`,
+          text: `${rows[gridDivisions - 1 - r]}${c + 1}`,
+          pos: Cartesian3.fromDegrees(centerLon, centerLat, 1)
+        });
+      }
+    }
+    return labels;
+  }, [searchArea, showSearchGrid, gridDivisions]);
+
   const lkpPos = useMemo(() => lkpPosition ? Cartesian3.fromDegrees(lkpPosition.lon, lkpPosition.lat, 5) : null, [lkpPosition]);
 
   if (!mounted) return null;
@@ -491,6 +512,21 @@ const CesiumMap = ({
         {coveredPolygons.map(cell => (
           <Entity key={`cov-${cell.key}`}>
             <PolygonGraphics hierarchy={new PolygonHierarchy(cell.positions)} material={Color.LIME.withAlpha(0.12)} outline={false} height={0.3} />
+          </Entity>
+        ))}
+        {gridLabels.map(lbl => (
+          <Entity key={`glbl-${lbl.key}`} position={lbl.pos}>
+            <LabelGraphics
+              text={lbl.text}
+              font="bold 13px monospace"
+              fillColor={coveredCells?.has(lbl.key) ? Color.LIME.withAlpha(0.5) : Color.WHITE.withAlpha(0.35)}
+              outlineColor={Color.BLACK}
+              outlineWidth={2}
+              horizontalOrigin={HorizontalOrigin.CENTER}
+              verticalOrigin={VerticalOrigin.CENTER}
+              disableDepthTestDistance={Number.POSITIVE_INFINITY}
+              scaleByDistance={new NearFarScalar(200, 1, 4000, 0.5)}
+            />
           </Entity>
         ))}
         {lkpPos && (

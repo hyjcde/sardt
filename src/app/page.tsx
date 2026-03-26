@@ -216,9 +216,10 @@ export default function Home(props: any) {
   }, []);
 
   const lkpPosition = useMemo(() => {
-    const sa = searchArea;
-    return { lon: (sa.minLon + sa.maxLon) / 2 + 0.0004, lat: (sa.minLat + sa.maxLat) / 2 - 0.0002 };
-  }, [searchArea]);
+    const baseLat = realData[0][COL.LAT_B];
+    const baseLon = realData[0][COL.LON_B];
+    return { lon: baseLon + 0.0003, lat: baseLat - 0.0002 };
+  }, []);
 
   const coveredCells = useMemo(() => {
     const cells = new Set<string>();
