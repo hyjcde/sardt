@@ -961,7 +961,6 @@ export default function Home(props: any) {
                 { icon: Eye, label: 'Show Labels', color: 'text-blue-400', active: showLabels, onClick: () => setShowLabels(!showLabels) },
                 { icon: Layers, label: 'Flight Trail', color: 'text-purple-400', active: showTrail, onClick: () => setShowTrail(!showTrail) },
                 { icon: Globe, label: 'Signal Link', color: 'text-emerald-400', active: showSignalLink, onClick: () => setShowSignalLink(!showSignalLink) },
-                { icon: Wind, label: 'Weather', color: 'text-cyan-400', active: showWeatherOverlay, onClick: () => setShowWeatherOverlay(!showWeatherOverlay) },
                 { icon: isPaused ? Radio : MapIcon, label: isPaused ? 'Resume' : 'Pause', color: 'text-amber-400', active: isPaused, onClick: () => setIsPaused(!isPaused) },
                 { icon: Satellite, label: 'Stats Panel', color: 'text-pink-400', active: showStats, onClick: () => setShowStats(!showStats) },
                 { icon: Grid3X3, label: 'Search Grid', color: 'text-yellow-400', active: showSearchGrid, onClick: () => setShowSearchGrid(!showSearchGrid) },

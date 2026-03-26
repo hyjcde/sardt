@@ -419,17 +419,18 @@ const CesiumMap = ({
     [fullHistory]
   );
 
+  const GRID_ALT = 8;
   const gridLines = useMemo(() => {
     if (!searchArea || !showSearchGrid) return [];
     const { minLat, maxLat, minLon, maxLon } = searchArea;
     const lines: Cartesian3[][] = [];
     for (let i = 0; i <= gridDivisions; i++) {
       const lat = minLat + (maxLat - minLat) * i / gridDivisions;
-      lines.push([Cartesian3.fromDegrees(minLon, lat, 0.5), Cartesian3.fromDegrees(maxLon, lat, 0.5)]);
+      lines.push([Cartesian3.fromDegrees(minLon, lat, GRID_ALT), Cartesian3.fromDegrees(maxLon, lat, GRID_ALT)]);
     }
     for (let j = 0; j <= gridDivisions; j++) {
       const lon = minLon + (maxLon - minLon) * j / gridDivisions;
-      lines.push([Cartesian3.fromDegrees(lon, minLat, 0.5), Cartesian3.fromDegrees(lon, maxLat, 0.5)]);
+      lines.push([Cartesian3.fromDegrees(lon, minLat, GRID_ALT), Cartesian3.fromDegrees(lon, maxLat, GRID_ALT)]);
     }
     return lines;
   }, [searchArea, showSearchGrid, gridDivisions]);
@@ -446,7 +447,7 @@ const CesiumMap = ({
       const lon0 = minLon + c * cellW;
       polys.push({
         key,
-        positions: Cartesian3.fromDegreesArray([lon0, lat0, lon0 + cellW, lat0, lon0 + cellW, lat0 + cellH, lon0, lat0 + cellH])
+        positions: Cartesian3.fromDegreesArrayHeights([lon0, lat0, GRID_ALT, lon0 + cellW, lat0, GRID_ALT, lon0 + cellW, lat0 + cellH, GRID_ALT, lon0, lat0 + cellH, GRID_ALT])
       });
     });
     return polys;
@@ -455,7 +456,7 @@ const CesiumMap = ({
   const searchBoundary = useMemo(() => {
     if (!searchArea || !showSearchGrid) return null;
     const { minLat, maxLat, minLon, maxLon } = searchArea;
-    return Cartesian3.fromDegreesArray([minLon, minLat, maxLon, minLat, maxLon, maxLat, minLon, maxLat, minLon, minLat]);
+    return Cartesian3.fromDegreesArrayHeights([minLon, minLat, GRID_ALT, maxLon, minLat, GRID_ALT, maxLon, maxLat, GRID_ALT, minLon, maxLat, GRID_ALT, minLon, minLat, GRID_ALT]);
   }, [searchArea, showSearchGrid]);
 
   const gridLabels = useMemo(() => {
@@ -472,7 +473,7 @@ const CesiumMap = ({
         labels.push({
           key: `${r}-${c}`,
           text: `${rows[gridDivisions - 1 - r]}${c + 1}`,
-          pos: Cartesian3.fromDegrees(centerLon, centerLat, 1)
+          pos: Cartesian3.fromDegrees(centerLon, centerLat, GRID_ALT + 1)
         });
       }
     }
@@ -511,7 +512,7 @@ const CesiumMap = ({
         ))}
         {coveredPolygons.map(cell => (
           <Entity key={`cov-${cell.key}`}>
-            <PolygonGraphics hierarchy={new PolygonHierarchy(cell.positions)} material={Color.LIME.withAlpha(0.15)} outline={false} height={0.3} />
+            <PolygonGraphics hierarchy={new PolygonHierarchy(cell.positions)} material={Color.LIME.withAlpha(0.15)} outline={false} height={GRID_ALT} />
           </Entity>
         ))}
         {gridLabels.map(lbl => (
