@@ -9,8 +9,10 @@ import {
   Crosshair,
   Eye,
   Globe,
+  Grid3X3,
+  HeartPulse,
   Layers,
-  Map as MapIcon, Maximize2,
+  Map as MapIcon, MapPin, Maximize2,
   Mountain,
   Navigation,
   Network,
@@ -18,6 +20,7 @@ import {
   Radio,
   Ruler,
   Satellite,
+  Search,
   Settings,
   Shield,
   Signal,
@@ -27,6 +30,7 @@ import {
   X,
   Zap,
   BarChart3,
+  ClipboardList,
   TrendingUp,
   Info,
   Gauge,
@@ -71,8 +75,11 @@ export default function Home(props: any) {
   // 地图模式与图层
   const [mapMode, setMapMode] = useState<'2d' | '3d'>('3d');           // 2D 平面 / 2.5D 地形
   const [baseLayer, setBaseLayer] = useState<'satellite' | 'street' | 'topo' | 'google'>('satellite'); // 底图
-  const [showRoads, setShowRoads] = useState(true);                     // 道路/标注叠加（仅部分底图有效）
-  const [showBuildings, setShowBuildings] = useState(true);             // 香港官方 3D 楼宇
+  const [showRoads, setShowRoads] = useState(true);
+  const [showBuildings, setShowBuildings] = useState(true);
+  const [missionMode, setMissionMode] = useState<'plan' | 'search' | 'rescue'>('search');
+  const [showSearchGrid, setShowSearchGrid] = useState(true);
+  const GRID_DIVISIONS = 4;
   
   const COL = {
     EPOCH: 0, LAT_R: 1, LON_R: 2, ALT_R: 3,
@@ -197,11 +204,53 @@ export default function Home(props: any) {
     return headingDeg.toFixed(0).padStart(3, '0');
   }, [currentData, prevData]);
 
+  const searchArea = useMemo(() => {
+    const lats = realData.map((d: any) => d[COL.LAT_R]);
+    const lons = realData.map((d: any) => d[COL.LON_R]);
+    return {
+      minLat: Math.min(...lats) - 0.0012,
+      maxLat: Math.max(...lats) + 0.0012,
+      minLon: Math.min(...lons) - 0.0012,
+      maxLon: Math.max(...lons) + 0.0012
+    };
+  }, []);
+
+  const lkpPosition = useMemo(() => {
+    const sa = searchArea;
+    return { lon: (sa.minLon + sa.maxLon) / 2 + 0.0004, lat: (sa.minLat + sa.maxLat) / 2 - 0.0002 };
+  }, [searchArea]);
+
+  const coveredCells = useMemo(() => {
+    const cells = new Set<string>();
+    const { minLat, maxLat, minLon, maxLon } = searchArea;
+    const cellH = (maxLat - minLat) / GRID_DIVISIONS;
+    const cellW = (maxLon - minLon) / GRID_DIVISIONS;
+    for (let i = 0; i <= dataIndex && i < realData.length; i++) {
+      const d = realData[i];
+      const row = Math.min(GRID_DIVISIONS - 1, Math.max(0, Math.floor((d[COL.LAT_R] - minLat) / cellH)));
+      const col = Math.min(GRID_DIVISIONS - 1, Math.max(0, Math.floor((d[COL.LON_R] - minLon) / cellW)));
+      cells.add(`${row}-${col}`);
+    }
+    return cells;
+  }, [dataIndex, searchArea]);
+
+  const searchAreaKm2 = useMemo(() => {
+    const { minLat, maxLat, minLon, maxLon } = searchArea;
+    const latDist = (maxLat - minLat) * 111.32;
+    const lonDist = (maxLon - minLon) * 111.32 * Math.cos(((minLat + maxLat) / 2) * Math.PI / 180);
+    return latDist * lonDist;
+  }, [searchArea]);
+
+  const gridCoverage = useMemo(() => {
+    const total = GRID_DIVISIONS * GRID_DIVISIONS;
+    return { searched: coveredCells.size, total, pct: Math.round(coveredCells.size / total * 100) };
+  }, [coveredCells]);
+
   useEffect(() => {
     if (isPaused) return;
     const interval = setInterval(() => {
       setDataIndex(prev => (prev + 1) % realData.length);
-    }, 500); // 500ms 更新间隔，减少频闪
+    }, 500);
     return () => clearInterval(interval);
   }, [isPaused]);
 
@@ -251,6 +300,11 @@ export default function Home(props: any) {
         baseLayer={baseLayer}
         showRoads={showRoads}
         showBuildings={showBuildings}
+        searchArea={searchArea}
+        lkpPosition={lkpPosition}
+        showSearchGrid={showSearchGrid}
+        gridDivisions={GRID_DIVISIONS}
+        coveredCells={coveredCells}
       />
 
       {/* 背景装饰 */}
@@ -363,7 +417,20 @@ export default function Home(props: any) {
           </div>
 
           <div className="flex gap-2">
-            {/* 任务计时器 */}
+            {/* Mission Phase Tabs */}
+            <div className="bg-zinc-900/60 backdrop-blur-xl border border-white/10 p-1.5 rounded-xl flex gap-1 shadow-2xl">
+              {([
+                { mode: 'plan' as const, label: 'Plan', icon: ClipboardList, color: 'text-blue-400', ring: 'ring-blue-500/50', bg: 'bg-blue-500/20' },
+                { mode: 'search' as const, label: 'Search', icon: Search, color: 'text-amber-400', ring: 'ring-amber-500/50', bg: 'bg-amber-500/20' },
+                { mode: 'rescue' as const, label: 'Rescue', icon: HeartPulse, color: 'text-red-400', ring: 'ring-red-500/50', bg: 'bg-red-500/20' }
+              ]).map(tab => (
+                <button key={tab.mode} onClick={() => setMissionMode(tab.mode)} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-2 ${missionMode === tab.mode ? `${tab.bg} ${tab.color} ring-1 ${tab.ring}` : 'text-zinc-500 hover:bg-white/5 hover:text-zinc-300'}`}>
+                  <tab.icon className="w-3.5 h-3.5" />
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
             <div className="bg-zinc-900/60 backdrop-blur-xl border border-white/10 px-4 py-3 rounded-xl flex items-center gap-3 shadow-2xl">
               <Clock className="w-4 h-4 text-cyan-400" />
               <div>
@@ -634,6 +701,208 @@ export default function Home(props: any) {
           {/* 右侧面板 */}
           <div className="w-[420px] flex flex-col gap-3 pointer-events-auto shrink-0 overflow-y-auto scrollbar-hide">
 
+            {/* ========== PLAN MODE ========== */}
+            {missionMode === 'plan' && (
+              <>
+                <section className="bg-zinc-900/60 backdrop-blur-xl border border-blue-500/20 rounded-xl p-3 shadow-2xl">
+                  <div className="flex items-center gap-2 mb-3 pb-2 border-b border-white/10">
+                    <MapPin className="w-4 h-4 text-orange-400" />
+                    <span className="text-[10px] font-black text-zinc-300 uppercase tracking-wider">Target Report</span>
+                    <span className="ml-auto text-[8px] font-black text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">ACTIVE</span>
+                  </div>
+                  <div className="space-y-2.5">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="rounded-lg bg-white/5 border border-white/10 px-3 py-2">
+                        <p className="text-[7px] text-zinc-500 uppercase font-black">Target Type</p>
+                        <p className="mt-1 text-[11px] font-black text-white">Missing Person</p>
+                      </div>
+                      <div className="rounded-lg bg-white/5 border border-white/10 px-3 py-2">
+                        <p className="text-[7px] text-zinc-500 uppercase font-black">Priority</p>
+                        <p className="mt-1 text-[11px] font-black text-red-400">URGENT</p>
+                      </div>
+                    </div>
+                    <div className="rounded-lg bg-white/5 border border-white/10 px-3 py-2">
+                      <p className="text-[7px] text-zinc-500 uppercase font-black">Last Known Position</p>
+                      <p className="mt-1 text-[10px] font-mono text-white">{lkpPosition.lat.toFixed(6)}°N, {lkpPosition.lon.toFixed(6)}°E</p>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="rounded-lg bg-white/5 border border-white/10 px-2.5 py-2 text-center">
+                        <p className="text-[7px] text-zinc-500 uppercase font-black">Last Contact</p>
+                        <p className="mt-1 text-[10px] font-black text-amber-400">14 min</p>
+                      </div>
+                      <div className="rounded-lg bg-white/5 border border-white/10 px-2.5 py-2 text-center">
+                        <p className="text-[7px] text-zinc-500 uppercase font-black">Terrain</p>
+                        <p className="mt-1 text-[10px] font-black text-white">Mountain</p>
+                      </div>
+                      <div className="rounded-lg bg-white/5 border border-white/10 px-2.5 py-2 text-center">
+                        <p className="text-[7px] text-zinc-500 uppercase font-black">Weather</p>
+                        <p className="mt-1 text-[10px] font-black text-cyan-400">Clear</p>
+                      </div>
+                    </div>
+                    <div className="rounded-lg bg-orange-500/5 border border-orange-500/20 px-3 py-2">
+                      <p className="text-[8px] text-zinc-400">Hiker reported lost on mountain trail near signal tower area. Last phone signal detected at the marked LKP coordinate.</p>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="bg-zinc-900/60 backdrop-blur-xl border border-blue-500/20 rounded-xl p-3 shadow-2xl">
+                  <div className="flex items-center gap-2 mb-3 pb-2 border-b border-white/10">
+                    <Grid3X3 className="w-4 h-4 text-yellow-400" />
+                    <span className="text-[10px] font-black text-zinc-300 uppercase tracking-wider">Search Area</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 mb-3">
+                    <div className="rounded-lg bg-white/5 border border-white/10 px-2.5 py-2 text-center">
+                      <p className="text-[7px] text-zinc-500 uppercase font-black">Shape</p>
+                      <p className="mt-1 text-[11px] font-black text-white">Rectangle</p>
+                    </div>
+                    <div className="rounded-lg bg-white/5 border border-white/10 px-2.5 py-2 text-center">
+                      <p className="text-[7px] text-zinc-500 uppercase font-black">Area</p>
+                      <p className="mt-1 text-[11px] font-black text-cyan-400">{searchAreaKm2.toFixed(3)} km²</p>
+                    </div>
+                    <div className="rounded-lg bg-white/5 border border-white/10 px-2.5 py-2 text-center">
+                      <p className="text-[7px] text-zinc-500 uppercase font-black">Grid</p>
+                      <p className="mt-1 text-[11px] font-black text-yellow-400">{GRID_DIVISIONS}×{GRID_DIVISIONS}</p>
+                    </div>
+                  </div>
+                  <div className="rounded-lg bg-white/5 border border-white/10 px-3 py-2.5 mb-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-[8px] text-zinc-500 uppercase font-black">Grid Coverage</p>
+                      <p className="text-[10px] font-black text-emerald-400">{gridCoverage.searched}/{gridCoverage.total} sectors ({gridCoverage.pct}%)</p>
+                    </div>
+                    <div className="w-full h-2 bg-zinc-800 rounded-full overflow-hidden">
+                      <div className="h-full bg-emerald-500/60 rounded-full transition-all duration-300" style={{ width: `${gridCoverage.pct}%` }} />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[8px] text-zinc-500 uppercase font-black">Show Grid on Map</span>
+                    <button onClick={() => setShowSearchGrid(!showSearchGrid)} className={`w-9 h-5 rounded-full transition-all ${showSearchGrid ? 'bg-yellow-500/50' : 'bg-zinc-700'}`}>
+                      <div className={`w-4 h-4 rounded-full bg-white shadow transition-transform ${showSearchGrid ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                    </button>
+                  </div>
+                </section>
+
+                <section className="bg-zinc-900/60 backdrop-blur-xl border border-blue-500/20 rounded-xl p-3 shadow-2xl">
+                  <div className="flex items-center gap-2 mb-3 pb-2 border-b border-white/10">
+                    <Plane className="w-4 h-4 text-cyan-400" />
+                    <span className="text-[10px] font-black text-zinc-300 uppercase tracking-wider">Team Assignment</span>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between rounded-lg bg-emerald-500/5 border border-emerald-500/20 px-3 py-2.5">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                        <div>
+                          <p className="text-[10px] font-black text-white">UAV-01 (DJI M3T)</p>
+                          <p className="text-[8px] text-zinc-500">Aerial Search — Sweep Pattern</p>
+                        </div>
+                      </div>
+                      <span className="text-[8px] font-black text-emerald-400 bg-emerald-500/15 px-2 py-1 rounded">ACTIVE</span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-lg bg-white/5 border border-white/10 px-3 py-2.5">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-2 h-2 bg-zinc-600 rounded-full" />
+                        <div>
+                          <p className="text-[10px] font-black text-zinc-400">Ground Team Alpha</p>
+                          <p className="text-[8px] text-zinc-600">Trail Search — Foot Patrol</p>
+                        </div>
+                      </div>
+                      <span className="text-[8px] font-black text-zinc-500 bg-white/5 px-2 py-1 rounded">STANDBY</span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-lg bg-white/5 border border-white/10 px-3 py-2.5">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-2 h-2 bg-zinc-600 rounded-full" />
+                        <div>
+                          <p className="text-[10px] font-black text-zinc-400">Helicopter Bravo</p>
+                          <p className="text-[8px] text-zinc-600">Aerial Visual — Wide Area</p>
+                        </div>
+                      </div>
+                      <span className="text-[8px] font-black text-zinc-500 bg-white/5 px-2 py-1 rounded">STANDBY</span>
+                    </div>
+                  </div>
+                  <button onClick={() => setMissionMode('search')} className="mt-3 w-full py-2.5 rounded-lg bg-amber-500/15 text-amber-400 text-[10px] font-black uppercase tracking-wider ring-1 ring-amber-500/30 hover:bg-amber-500/25 transition-all">
+                    Start Search Execution →
+                  </button>
+                </section>
+              </>
+            )}
+
+            {/* ========== RESCUE MODE ========== */}
+            {missionMode === 'rescue' && (
+              <>
+                <section className="bg-zinc-900/60 backdrop-blur-xl border border-red-500/30 rounded-xl p-3 shadow-2xl">
+                  <div className="flex items-center gap-2 mb-3 pb-2 border-b border-red-500/20">
+                    <HeartPulse className="w-4 h-4 text-red-400 animate-pulse" />
+                    <span className="text-[10px] font-black text-zinc-300 uppercase tracking-wider">Rescue Operations</span>
+                    <span className="ml-auto text-[8px] font-black text-red-400 bg-red-500/10 px-2 py-0.5 rounded border border-red-500/20 animate-pulse">ACTIVE</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 mb-3">
+                    <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3 py-2.5 text-center">
+                      <p className="text-[7px] text-zinc-500 uppercase font-black">Target</p>
+                      <p className="mt-1 text-[13px] font-black text-emerald-400">LOCATED</p>
+                    </div>
+                    <div className="rounded-lg bg-white/5 border border-white/10 px-3 py-2.5 text-center">
+                      <p className="text-[7px] text-zinc-500 uppercase font-black">ETA Rescue</p>
+                      <p className="mt-1 text-[13px] font-black text-cyan-400">~{Math.max(2, 12 - Math.floor(dataIndex * 0.03))} min</p>
+                    </div>
+                  </div>
+                  <div className="rounded-lg bg-red-500/5 border border-red-500/20 px-3 py-2.5 mb-3">
+                    <p className="text-[8px] font-black uppercase text-zinc-300 mb-1">Priority Dispatch</p>
+                    <p className="text-[9px] text-zinc-400">Ground Team Alpha deploying to target coordinates. Helicopter Bravo on 5-min standby for medical evacuation.</p>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-[9px]">
+                      <span className="text-zinc-500 uppercase font-black">UAV-01 Overhead</span>
+                      <span className="text-emerald-400 font-black">Maintaining Visual</span>
+                    </div>
+                    <div className="flex items-center justify-between text-[9px]">
+                      <span className="text-zinc-500 uppercase font-black">Ground Team</span>
+                      <span className="text-amber-400 font-black">En Route</span>
+                    </div>
+                    <div className="flex items-center justify-between text-[9px]">
+                      <span className="text-zinc-500 uppercase font-black">Helo Bravo</span>
+                      <span className="text-zinc-400 font-black">Standby</span>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="bg-zinc-900/60 backdrop-blur-xl border border-red-500/30 rounded-xl p-3 shadow-2xl">
+                  <div className="flex items-center gap-2 mb-2.5 pb-2 border-b border-white/10">
+                    <Target className="w-4 h-4 text-emerald-400" />
+                    <span className="text-[10px] font-black text-zinc-300 uppercase tracking-wider">Target Confirmation</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 mb-3">
+                    <div className="rounded-lg bg-white/5 border border-white/10 px-2.5 py-2 text-center">
+                      <p className="text-[7px] text-zinc-500 uppercase font-black">Detected</p>
+                      <p className="mt-1 text-[13px] font-black text-white">3</p>
+                    </div>
+                    <div className="rounded-lg bg-white/5 border border-white/10 px-2.5 py-2 text-center">
+                      <p className="text-[7px] text-zinc-500 uppercase font-black">Confidence</p>
+                      <p className="mt-1 text-[13px] font-black text-emerald-400">94%</p>
+                    </div>
+                    <div className="rounded-lg bg-white/5 border border-white/10 px-2.5 py-2 text-center">
+                      <p className="text-[7px] text-zinc-500 uppercase font-black">Distance</p>
+                      <p className="mt-1 text-[13px] font-black text-cyan-400">{currentData[COL.DIST].toFixed(0)}m</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="rounded-lg bg-white/5 border border-white/10 px-3 py-2">
+                      <p className="text-[7px] text-zinc-500 uppercase font-black">Grid Sector</p>
+                      <p className="mt-1 text-[10px] font-black text-yellow-400">B-3</p>
+                    </div>
+                    <div className="rounded-lg bg-white/5 border border-white/10 px-3 py-2">
+                      <p className="text-[7px] text-zinc-500 uppercase font-black">Coordinates</p>
+                      <p className="mt-1 text-[10px] font-mono font-black text-white">{currentData[COL.LAT_R].toFixed(4)}°N</p>
+                    </div>
+                  </div>
+                </section>
+
+                <button onClick={() => setMissionMode('search')} className="w-full py-2.5 rounded-xl bg-white/5 text-zinc-400 text-[10px] font-black uppercase tracking-wider ring-1 ring-white/10 hover:bg-white/10 transition-all">
+                  ← Back to Search View
+                </button>
+              </>
+            )}
+
+            {/* ========== SEARCH MODE (existing panels) ========== */}
+            {missionMode === 'search' && <>
             <section className="bg-zinc-900/60 backdrop-blur-xl border border-white/10 rounded-xl p-3 shadow-2xl">
               <div className="flex items-center gap-2 mb-3 pb-2 border-b border-white/10">
                 <Target className="w-4 h-4 text-red-400" />
@@ -694,6 +963,7 @@ export default function Home(props: any) {
                 { icon: Wind, label: 'Weather', color: 'text-cyan-400', active: showWeatherOverlay, onClick: () => setShowWeatherOverlay(!showWeatherOverlay) },
                 { icon: isPaused ? Radio : MapIcon, label: isPaused ? 'Resume' : 'Pause', color: 'text-amber-400', active: isPaused, onClick: () => setIsPaused(!isPaused) },
                 { icon: Satellite, label: 'Stats Panel', color: 'text-pink-400', active: showStats, onClick: () => setShowStats(!showStats) },
+                { icon: Grid3X3, label: 'Search Grid', color: 'text-yellow-400', active: showSearchGrid, onClick: () => setShowSearchGrid(!showSearchGrid) },
                 { icon: Network, label: 'Reset View', color: 'text-indigo-400', active: false, onClick: () => { setDataIndex(0); setLogs([]); } },
                 { icon: Settings, label: 'Config', color: 'text-zinc-300', active: showConfig, onClick: () => setShowConfig(!showConfig) }
               ].map((item, i) => (
@@ -1060,6 +1330,7 @@ export default function Home(props: any) {
                 </div>
               </div>
             </section>
+            </>}
           </div>
         </div>
 
@@ -1106,7 +1377,7 @@ export default function Home(props: any) {
             </div>
           </div>
 
-          <button className="w-48 bg-gradient-to-br from-emerald-600/40 to-emerald-900/20 hover:from-emerald-500/50 hover:to-emerald-800/30 backdrop-blur-xl border border-emerald-500/40 rounded-2xl flex flex-col items-center justify-center gap-2 transition-all active:scale-95 shadow-2xl group relative overflow-hidden">
+          <button onClick={() => setMissionMode('rescue')} className="w-48 bg-gradient-to-br from-emerald-600/40 to-emerald-900/20 hover:from-emerald-500/50 hover:to-emerald-800/30 backdrop-blur-xl border border-emerald-500/40 rounded-2xl flex flex-col items-center justify-center gap-2 transition-all active:scale-95 shadow-2xl group relative overflow-hidden">
             <div className="w-11 h-11 rounded-full border-2 border-emerald-500/50 flex items-center justify-center bg-emerald-500/10 group-hover:bg-emerald-500/20 transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)] relative z-10">
               <Navigation className="w-5 h-5 rotate-45 text-emerald-400" />
             </div>

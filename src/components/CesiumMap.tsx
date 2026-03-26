@@ -20,10 +20,11 @@ import {
   NearFarScalar,
   SceneMode,
   UrlTemplateImageryProvider,
-  EllipsoidTerrainProvider
+  EllipsoidTerrainProvider,
+  PolygonHierarchy
 } from 'cesium';
 import React, { useCallback, useEffect, useMemo, useRef, useState, memo } from 'react';
-import { BillboardGraphics, CylinderGraphics, Entity, ImageryLayer, LabelGraphics, ModelGraphics, PolylineGraphics, useCesium, Viewer } from 'resium';
+import { BillboardGraphics, CylinderGraphics, Entity, ImageryLayer, LabelGraphics, ModelGraphics, PolygonGraphics, PolylineGraphics, useCesium, Viewer } from 'resium';
 
 // CC-BY-4.0 attribution:
 // "DJI Mavic 3" by llirikslon
@@ -63,6 +64,24 @@ const BASE_ICON = `data:image/svg+xml,${encodeURIComponent(`
   <path d="M42 16 Q37 8 32 7" fill="none" stroke="#f43f5e" stroke-width="1.8" stroke-linecap="round" opacity="0.8"/>
   <path d="M46 20 Q39 9 32 7" fill="none" stroke="#f43f5e" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
   <path d="M50 24 Q41 10 32 7" fill="none" stroke="#f43f5e" stroke-width="1.2" stroke-linecap="round" opacity="0.3"/>
+</svg>
+`)}`;
+
+const LKP_ICON = `data:image/svg+xml,${encodeURIComponent(`
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <defs>
+    <filter id="lkp" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="2" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <ellipse cx="32" cy="60" rx="9" ry="3" fill="#000" opacity="0.25"/>
+  <line x1="32" y1="56" x2="32" y2="36" stroke="#ea580c" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="32" cy="20" r="17" fill="#ea580c" filter="url(#lkp)"/>
+  <circle cx="32" cy="20" r="14" fill="#1a1a1a" stroke="#fb923c" stroke-width="1.5"/>
+  <text x="32" y="25" text-anchor="middle" font-size="13" font-weight="900" fill="#fb923c" font-family="monospace">SOS</text>
+  <circle cx="32" cy="20" r="20" fill="none" stroke="#fb923c" stroke-width="1" opacity="0.4"/>
+  <circle cx="32" cy="20" r="24" fill="none" stroke="#fb923c" stroke-width="0.8" opacity="0.2"/>
 </svg>
 `)}`;
 
@@ -247,6 +266,11 @@ interface CesiumMapProps {
   baseLayer?: 'satellite' | 'street' | 'topo' | 'google';
   showRoads?: boolean;
   showBuildings?: boolean;
+  searchArea?: { minLat: number; maxLat: number; minLon: number; maxLon: number } | null;
+  lkpPosition?: { lon: number; lat: number } | null;
+  showSearchGrid?: boolean;
+  gridDivisions?: number;
+  coveredCells?: Set<string>;
 }
 
 const CesiumMap = ({ 
@@ -261,7 +285,12 @@ const CesiumMap = ({
   mapMode = '3d',
   baseLayer = 'satellite',
   showRoads = true,
-  showBuildings = true
+  showBuildings = true,
+  searchArea = null,
+  lkpPosition = null,
+  showSearchGrid = false,
+  gridDivisions = 4,
+  coveredCells
 }: CesiumMapProps) => {
   const [mounted, setMounted] = useState(false);
   const [terrainProvider, setTerrainProvider] = useState<any>(undefined);
@@ -390,6 +419,47 @@ const CesiumMap = ({
     [fullHistory]
   );
 
+  const gridLines = useMemo(() => {
+    if (!searchArea || !showSearchGrid) return [];
+    const { minLat, maxLat, minLon, maxLon } = searchArea;
+    const lines: Cartesian3[][] = [];
+    for (let i = 0; i <= gridDivisions; i++) {
+      const lat = minLat + (maxLat - minLat) * i / gridDivisions;
+      lines.push([Cartesian3.fromDegrees(minLon, lat, 0.5), Cartesian3.fromDegrees(maxLon, lat, 0.5)]);
+    }
+    for (let j = 0; j <= gridDivisions; j++) {
+      const lon = minLon + (maxLon - minLon) * j / gridDivisions;
+      lines.push([Cartesian3.fromDegrees(lon, minLat, 0.5), Cartesian3.fromDegrees(lon, maxLat, 0.5)]);
+    }
+    return lines;
+  }, [searchArea, showSearchGrid, gridDivisions]);
+
+  const coveredPolygons = useMemo(() => {
+    if (!searchArea || !coveredCells || coveredCells.size === 0) return [];
+    const { minLat, maxLat, minLon, maxLon } = searchArea;
+    const cellH = (maxLat - minLat) / gridDivisions;
+    const cellW = (maxLon - minLon) / gridDivisions;
+    const polys: { key: string; positions: Cartesian3[] }[] = [];
+    coveredCells.forEach(key => {
+      const [r, c] = key.split('-').map(Number);
+      const lat0 = minLat + r * cellH;
+      const lon0 = minLon + c * cellW;
+      polys.push({
+        key,
+        positions: Cartesian3.fromDegreesArray([lon0, lat0, lon0 + cellW, lat0, lon0 + cellW, lat0 + cellH, lon0, lat0 + cellH])
+      });
+    });
+    return polys;
+  }, [searchArea, coveredCells, gridDivisions]);
+
+  const searchBoundary = useMemo(() => {
+    if (!searchArea || !showSearchGrid) return null;
+    const { minLat, maxLat, minLon, maxLon } = searchArea;
+    return Cartesian3.fromDegreesArray([minLon, minLat, maxLon, minLat, maxLon, maxLat, minLon, maxLat, minLon, minLat]);
+  }, [searchArea, showSearchGrid]);
+
+  const lkpPos = useMemo(() => lkpPosition ? Cartesian3.fromDegrees(lkpPosition.lon, lkpPosition.lat, 5) : null, [lkpPosition]);
+
   if (!mounted) return null;
 
   return (
@@ -407,6 +477,30 @@ const CesiumMap = ({
         <ImageryLayer imageryProvider={baseImagery} />
         {roadsOverlayImagery && <ImageryLayer imageryProvider={roadsOverlayImagery} alpha={0.75} brightness={1.1} />}
         <HongKongBuildingsLayer enabled={mapMode === '3d' && showBuildings} />
+
+        {searchBoundary && (
+          <Entity key="search-boundary">
+            <PolylineGraphics positions={searchBoundary} width={3} material={new PolylineDashMaterialProperty({ color: Color.YELLOW.withAlpha(0.8), dashLength: 16 })} />
+          </Entity>
+        )}
+        {gridLines.map((line, i) => (
+          <Entity key={`grid-${i}`}>
+            <PolylineGraphics positions={line} width={1} material={new PolylineDashMaterialProperty({ color: Color.WHITE.withAlpha(0.2), dashLength: 12 })} />
+          </Entity>
+        ))}
+        {coveredPolygons.map(cell => (
+          <Entity key={`cov-${cell.key}`}>
+            <PolygonGraphics hierarchy={new PolygonHierarchy(cell.positions)} material={Color.LIME.withAlpha(0.12)} outline={false} height={0.3} />
+          </Entity>
+        ))}
+        {lkpPos && (
+          <Entity key="lkp-marker" position={lkpPos}>
+            <BillboardGraphics image={LKP_ICON} width={52} height={52} verticalOrigin={VerticalOrigin.BOTTOM} disableDepthTestDistance={Number.POSITIVE_INFINITY} scaleByDistance={new NearFarScalar(100, 1.3, 3000, 0.7)} />
+            {autoShowLabels && (
+              <LabelGraphics text="LAST KNOWN POS" font="bold 14px sans-serif" fillColor={Color.ORANGE} outlineColor={Color.BLACK} outlineWidth={3} pixelOffset={new Cartesian2(0, 12)} verticalOrigin={VerticalOrigin.TOP} horizontalOrigin={HorizontalOrigin.CENTER} disableDepthTestDistance={Number.POSITIVE_INFINITY} scaleByDistance={new NearFarScalar(100, 1.2, 3000, 0.8)} />
+            )}
+          </Entity>
+        )}
 
         {/* UAV 飞行轨迹 */}
         {autoShowTrail && (
