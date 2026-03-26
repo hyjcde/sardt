@@ -501,31 +501,32 @@ const CesiumMap = ({
 
         {searchBoundary && (
           <Entity key="search-boundary">
-            <PolylineGraphics positions={searchBoundary} width={3} material={new PolylineDashMaterialProperty({ color: Color.YELLOW.withAlpha(0.8), dashLength: 16 })} />
+            <PolylineGraphics positions={searchBoundary} width={4} material={Color.YELLOW.withAlpha(0.9)} />
           </Entity>
         )}
         {gridLines.map((line, i) => (
           <Entity key={`grid-${i}`}>
-            <PolylineGraphics positions={line} width={1} material={new PolylineDashMaterialProperty({ color: Color.WHITE.withAlpha(0.2), dashLength: 12 })} />
+            <PolylineGraphics positions={line} width={2} material={new PolylineDashMaterialProperty({ color: Color.YELLOW.withAlpha(0.45), dashLength: 10 })} />
           </Entity>
         ))}
         {coveredPolygons.map(cell => (
           <Entity key={`cov-${cell.key}`}>
-            <PolygonGraphics hierarchy={new PolygonHierarchy(cell.positions)} material={Color.LIME.withAlpha(0.12)} outline={false} height={0.3} />
+            <PolygonGraphics hierarchy={new PolygonHierarchy(cell.positions)} material={Color.LIME.withAlpha(0.15)} outline={false} height={0.3} />
           </Entity>
         ))}
         {gridLabels.map(lbl => (
           <Entity key={`glbl-${lbl.key}`} position={lbl.pos}>
             <LabelGraphics
               text={lbl.text}
-              font="bold 13px monospace"
-              fillColor={coveredCells?.has(lbl.key) ? Color.LIME.withAlpha(0.5) : Color.WHITE.withAlpha(0.35)}
+              font="bold 18px monospace"
+              fillColor={coveredCells?.has(lbl.key) ? Color.LIME : Color.WHITE}
               outlineColor={Color.BLACK}
-              outlineWidth={2}
+              outlineWidth={4}
+              style={1}
               horizontalOrigin={HorizontalOrigin.CENTER}
               verticalOrigin={VerticalOrigin.CENTER}
               disableDepthTestDistance={Number.POSITIVE_INFINITY}
-              scaleByDistance={new NearFarScalar(200, 1, 4000, 0.5)}
+              scaleByDistance={new NearFarScalar(100, 1.2, 4000, 0.6)}
             />
           </Entity>
         ))}
